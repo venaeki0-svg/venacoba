@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Lead, LeadStatus, ContactChannel, Profile } from '../types';
 import { leadService } from '../services/database';
 

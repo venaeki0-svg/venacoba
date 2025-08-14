@@ -113,7 +113,7 @@ const PublicBookingForm: React.FC<PublicBookingFormProps> = ({
             }
             return <p key={index} className="text-brand-text-primary">{line}</p>;
         });
-    }, [userProfile.termsAndConditions]);
+    }, [userProfile]);
 
 
     const { totalBeforeDiscount, discountAmount, totalProject, discountText } = useMemo(() => {

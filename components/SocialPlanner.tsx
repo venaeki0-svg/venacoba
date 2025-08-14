@@ -125,11 +125,17 @@ const PostCalendarView: React.FC<{
 interface SocialPlannerProps {
     posts: SocialMediaPost[];
     setPosts: React.Dispatch<React.SetStateAction<SocialMediaPost[]>>;
+    addPost: (post: Omit<SocialMediaPost, 'id'>) => Promise<SocialMediaPost>;
+    updatePost: (id: string, post: Partial<SocialMediaPost>) => Promise<SocialMediaPost>;
+    deletePost: (id: string) => Promise<void>;
     projects: Project[];
     showNotification: (message: string) => void;
 }
 
-const SocialPlanner: React.FC<SocialPlannerProps> = ({ posts, setPosts, projects, showNotification }) => {
+const SocialPlanner: React.FC<SocialPlannerProps> = ({
+    posts, setPosts, addPost, updatePost, deletePost,
+    projects, showNotification
+}) => {
     const [draggedPostId, setDraggedPostId] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
@@ -162,16 +168,21 @@ const SocialPlanner: React.FC<SocialPlannerProps> = ({ posts, setPosts, projects
 
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => e.preventDefault();
 
-    const handleDrop = (e: React.DragEvent<HTMLDivElement>, newStatus: PostStatus) => {
+    const handleDrop = async (e: React.DragEvent<HTMLDivElement>, newStatus: PostStatus) => {
         e.preventDefault();
         const postId = e.dataTransfer.getData("postId");
-        setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: newStatus } : p));
-        setDraggedPostId(null);
-        setActiveFilter('all'); // Reset filter after dropping
         const post = posts.find(p => p.id === postId);
-        if (post) {
-            showNotification(`Post untuk "${post.clientName}" dipindahkan ke "${newStatus}".`);
+        if (post && post.status !== newStatus) {
+            try {
+                await updatePost(postId, { status: newStatus });
+                showNotification(`Post untuk "${post.clientName}" dipindahkan ke "${newStatus}".`);
+            } catch (error) {
+                console.error("Failed to update post status:", error);
+                showNotification("Gagal memindahkan postingan.");
+            }
         }
+        setDraggedPostId(null);
+        setActiveFilter('all');
     };
 
     const handleOpenModal = (mode: 'add' | 'edit', post?: SocialMediaPost) => {
@@ -196,16 +207,16 @@ const SocialPlanner: React.FC<SocialPlannerProps> = ({ posts, setPosts, projects
         setFormData(prev => ({...prev, [name]: value}));
     };
     
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.projectId) {
-            alert('Harap pilih proyek terlebih dahulu.');
+            showNotification('Harap pilih proyek terlebih dahulu.');
             return;
         }
 
         const project = projects.find(p => p.id === formData.projectId);
         if (!project) {
-            alert('Proyek tidak valid.');
+            showNotification('Proyek tidak valid.');
             return;
         }
 
@@ -213,29 +224,37 @@ const SocialPlanner: React.FC<SocialPlannerProps> = ({ posts, setPosts, projects
         if (formData.postType === PostType.TIKTOK) platform = 'TikTok';
         if (formData.postType === PostType.BLOG) platform = 'Website';
 
-        const postData: Omit<SocialMediaPost, 'id'> = {
+        const postData = {
             ...formData,
             clientName: project.clientName,
             platform,
         };
 
-        if (modalMode === 'add') {
-            const newPost = { ...postData, id: `SMP${Date.now()}` };
-            setPosts(prev => [...prev, newPost]);
-            showNotification('Postingan baru berhasil ditambahkan ke draf.');
-        } else if (selectedPost) {
-            const updatedPost = { ...postData, id: selectedPost.id };
-            setPosts(prev => prev.map(p => p.id === selectedPost.id ? updatedPost : p));
-            showNotification('Postingan berhasil diperbarui.');
+        try {
+            if (modalMode === 'add') {
+                await addPost(postData);
+                showNotification('Postingan baru berhasil ditambahkan ke draf.');
+            } else if (selectedPost) {
+                await updatePost(selectedPost.id, postData);
+                showNotification('Postingan berhasil diperbarui.');
+            }
+            handleCloseModal();
+        } catch (error) {
+            console.error("Failed to save post:", error);
+            showNotification("Gagal menyimpan postingan.");
         }
-        handleCloseModal();
     };
     
-    const handleDelete = (postId: string) => {
+    const handleDelete = async (postId: string) => {
         if(window.confirm('Yakin ingin menghapus postingan ini?')) {
-            setPosts(prev => prev.filter(p => p.id !== postId));
-            showNotification('Postingan berhasil dihapus.');
-            handleCloseModal();
+            try {
+                await deletePost(postId);
+                showNotification('Postingan berhasil dihapus.');
+                handleCloseModal();
+            } catch (error) {
+                console.error("Failed to delete post:", error);
+                showNotification("Gagal menghapus postingan.");
+            }
         }
     }
     

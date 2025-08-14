@@ -3,20 +3,17 @@ import { Client, Project, Package, AddOn, Transaction, Profile, Card, FinancialP
 import Modal from './Modal';
 
 interface PublicBookingFormProps {
-    setClients: React.Dispatch<React.SetStateAction<Client[]>>;
-    setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
+    addClient: (client: Omit<Client, 'id'>) => Promise<Client>;
+    addProject: (project: Omit<Project, 'id'>) => Promise<Project>;
+    addLead: (lead: Omit<Lead, 'id'>) => Promise<Lead>;
+    addTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<Transaction>;
+    updatePromoCode: (id: string, promoCode: Partial<PromoCode>) => Promise<PromoCode>;
     packages: Package[];
     addOns: AddOn[];
-    setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
     userProfile: Profile;
     cards: Card[];
-    setCards: React.Dispatch<React.SetStateAction<Card[]>>;
-    pockets: FinancialPocket[];
-    setPockets: React.Dispatch<React.SetStateAction<FinancialPocket[]>>;
     promoCodes: PromoCode[];
-    setPromoCodes: React.Dispatch<React.SetStateAction<PromoCode[]>>;
     showNotification: (message: string) => void;
-    setLeads: React.Dispatch<React.SetStateAction<Lead[]>>;
 }
 
 const formatCurrency = (amount: number) => {
@@ -80,7 +77,8 @@ const PackageCard: React.FC<{ pkg: Package, onSelect: () => void }> = ({ pkg, on
 
 
 const PublicBookingForm: React.FC<PublicBookingFormProps> = ({ 
-    setClients, setProjects, packages, addOns, setTransactions, userProfile, cards, setCards, pockets, setPockets, promoCodes, setPromoCodes, showNotification, setLeads
+    addClient, addProject, addLead, addTransaction, updatePromoCode,
+    packages, addOns, userProfile, cards, promoCodes, showNotification
 }) => {
     const [formData, setFormData] = useState({...initialFormState, projectType: userProfile.projectTypes[0] || ''});
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -178,99 +176,95 @@ const PublicBookingForm: React.FC<PublicBookingFormProps> = ({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
-        
-        const dpAmount = Number(formData.dp) || 0;
-        const selectedPackage = packages.find(p => p.id === formData.packageId);
-        if (!selectedPackage) {
-            alert('Silakan pilih paket.');
-            setIsSubmitting(false);
-            return;
-        }
 
-        const destinationCard = cards.find(c => c.id !== 'CARD_CASH') || cards[0];
-        if (!destinationCard) {
-            alert('Sistem pembayaran tidak dikonfigurasi. Hubungi vendor.');
-            setIsSubmitting(false);
-            return;
-        }
-        
-        let promoCodeAppliedId: string | undefined;
-        if (discountAmount > 0 && formData.promoCode) {
-            const promoCode = promoCodes.find(p => p.code === formData.promoCode.toUpperCase().trim());
-            if (promoCode) promoCodeAppliedId = promoCode.id;
-        }
+        try {
+            const dpAmount = Number(formData.dp) || 0;
+            const selectedPackage = packages.find(p => p.id === formData.packageId);
+            if (!selectedPackage) {
+                showNotification('Silakan pilih paket.');
+                setIsSubmitting(false);
+                return;
+            }
 
-        let dpProofUrl = '';
-        if (paymentProof) {
-            try {
+            const destinationCard = cards.find(c => c.id !== 'CARD_CASH') || cards[0];
+            if (!destinationCard) {
+                showNotification('Sistem pembayaran tidak dikonfigurasi. Hubungi vendor.');
+                setIsSubmitting(false);
+                return;
+            }
+
+            let promoCodeToUpdate: PromoCode | undefined;
+            if (discountAmount > 0 && formData.promoCode) {
+                promoCodeToUpdate = promoCodes.find(p => p.code === formData.promoCode.toUpperCase().trim());
+            }
+
+            let dpProofUrl = '';
+            if (paymentProof) {
                 dpProofUrl = await new Promise((resolve, reject) => {
                     const reader = new FileReader();
                     reader.readAsDataURL(paymentProof);
                     reader.onload = () => resolve(reader.result as string);
                     reader.onerror = error => reject(error);
                 });
-            } catch (error) {
-                console.error("Error reading file:", error);
-                showNotification("Gagal memproses file bukti transfer.");
-                setIsSubmitting(false);
-                return;
             }
+
+            const selectedAddOns = addOns.filter(addon => formData.selectedAddOnIds.includes(addon.id));
+            const remainingPayment = totalProject - dpAmount;
+
+            // 1. Create Lead
+            const leadResult = await addLead({
+                name: formData.clientName,
+                contactChannel: ContactChannel.WEBSITE,
+                location: formData.location,
+                status: LeadStatus.CONVERTED,
+                date: new Date().toISOString().split('T')[0],
+                notes: `Dikonversi secara otomatis dari formulir pemesanan publik.`
+            });
+
+            // 2. Create Client
+            const clientResult = await addClient({
+                name: formData.clientName, email: formData.email, phone: formData.phone, instagram: formData.instagram,
+                since: new Date().toISOString().split('T')[0], status: ClientStatus.ACTIVE,
+                clientType: ClientType.DIRECT,
+                lastContact: new Date().toISOString(),
+                portalAccessId: crypto.randomUUID(),
+            });
+
+            // 3. Create Project
+            const projectResult = await addProject({
+                projectName: formData.projectName || `Acara ${formData.clientName}`, clientName: clientResult.name, clientId: clientResult.id,
+                projectType: formData.projectType, packageName: selectedPackage.name, packageId: selectedPackage.id, addOns: selectedAddOns,
+                date: formData.date, location: formData.location, progress: 0, status: 'Dikonfirmasi',
+                totalCost: totalProject, amountPaid: dpAmount,
+                paymentStatus: dpAmount > 0 ? (remainingPayment <= 0 ? PaymentStatus.LUNAS : PaymentStatus.DP_TERBAYAR) : PaymentStatus.BELUM_BAYAR,
+                team: [], notes: `Referensi Pembayaran DP: ${formData.dpPaymentRef}`, promoCodeId: promoCodeToUpdate?.id, discountAmount: discountAmount > 0 ? discountAmount : undefined,
+                dpProofUrl: dpProofUrl || undefined,
+            });
+
+            // 4. Create Transaction if DP exists
+            if (dpAmount > 0) {
+                await addTransaction({
+                    date: new Date().toISOString().split('T')[0], description: `DP Proyek ${projectResult.projectName}`,
+                    amount: dpAmount, type: TransactionType.INCOME, projectId: projectResult.id, category: 'DP Proyek',
+                    method: 'Transfer Bank', cardId: destinationCard.id,
+                });
+                // Note: balance updates are handled locally in the main app for now to avoid complexity here.
+            }
+
+            // 5. Update Promo Code usage
+            if (promoCodeToUpdate) {
+                await updatePromoCode(promoCodeToUpdate.id, { usageCount: promoCodeToUpdate.usageCount + 1 });
+            }
+
+            setIsSubmitted(true);
+            showNotification('Pemesanan baru dari klien diterima!');
+
+        } catch (error) {
+            console.error("Booking submission failed:", error);
+            showNotification("Gagal mengirim pemesanan. Silakan coba lagi atau hubungi kami.");
+        } finally {
+            setIsSubmitting(false);
         }
-
-        const selectedAddOns = addOns.filter(addon => formData.selectedAddOnIds.includes(addon.id));
-        const remainingPayment = totalProject - dpAmount;
-
-        const newClientId = `CLI${Date.now()}`;
-        const newClient: Client = {
-            id: newClientId, name: formData.clientName, email: formData.email, phone: formData.phone, instagram: formData.instagram,
-            since: new Date().toISOString().split('T')[0], status: ClientStatus.ACTIVE, 
-            clientType: ClientType.DIRECT,
-            lastContact: new Date().toISOString(),
-            portalAccessId: crypto.randomUUID(),
-        };
-
-        const newProject: Project = {
-            id: `PRJ${Date.now()}`, projectName: formData.projectName || `Acara ${formData.clientName}`, clientName: newClient.name, clientId: newClient.id,
-            projectType: formData.projectType, packageName: selectedPackage.name, packageId: selectedPackage.id, addOns: selectedAddOns,
-            date: formData.date, location: formData.location, progress: 0, status: 'Dikonfirmasi',
-            totalCost: totalProject, amountPaid: dpAmount,
-            paymentStatus: dpAmount > 0 ? (remainingPayment <= 0 ? PaymentStatus.LUNAS : PaymentStatus.DP_TERBAYAR) : PaymentStatus.BELUM_BAYAR,
-            team: [], notes: `Referensi Pembayaran DP: ${formData.dpPaymentRef}`, promoCodeId: promoCodeAppliedId, discountAmount: discountAmount > 0 ? discountAmount : undefined,
-            dpProofUrl: dpProofUrl || undefined,
-        };
-        
-        const newLead: Lead = {
-            id: `LEAD-FORM-${Date.now()}`,
-            name: newClient.name,
-            contactChannel: ContactChannel.WEBSITE,
-            location: newProject.location,
-            status: LeadStatus.CONVERTED,
-            date: new Date().toISOString().split('T')[0],
-            notes: `Dikonversi secara otomatis dari formulir pemesanan publik. Proyek: ${newProject.projectName}. Klien ID: ${newClient.id}`
-        };
-
-        setClients(prev => [newClient, ...prev]);
-        setProjects(prev => [newProject, ...prev]);
-        setLeads(prev => [newLead, ...prev]);
-
-        if (promoCodeAppliedId) {
-            setPromoCodes(prev => prev.map(p => p.id === promoCodeAppliedId ? { ...p, usageCount: p.usageCount + 1 } : p));
-        }
-
-        if (dpAmount > 0) {
-            const newTransaction: Transaction = {
-                id: `TRN-DP-${newProject.id}`, date: new Date().toISOString().split('T')[0], description: `DP Proyek ${newProject.projectName}`,
-                amount: dpAmount, type: TransactionType.INCOME, projectId: newProject.id, category: 'DP Proyek',
-                method: 'Transfer Bank', pocketId: 'POC005', cardId: destinationCard.id,
-            };
-            setTransactions(prev => [...prev, newTransaction].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-            setCards(prev => prev.map(c => c.id === destinationCard.id ? { ...c, balance: c.balance + dpAmount } : c));
-            setPockets(prev => prev.map(p => p.id === 'POC005' ? { ...p, amount: p.amount + dpAmount } : p));
-        }
-
-        setIsSubmitting(false);
-        setIsSubmitted(true);
-        showNotification('Pemesanan baru dari klien diterima!');
     };
     
     const renderSampleContract = () => {

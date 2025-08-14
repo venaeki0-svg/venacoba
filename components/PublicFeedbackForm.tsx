@@ -5,7 +5,7 @@ import { ClientFeedback, SatisfactionLevel } from '../types';
 import { StarIcon } from '../constants';
 
 interface PublicFeedbackFormProps {
-    setClientFeedback: React.Dispatch<React.SetStateAction<ClientFeedback[]>>;
+    addClientFeedback: (feedback: Omit<ClientFeedback, 'id'>) => Promise<ClientFeedback>;
 }
 
 const getSatisfactionFromRating = (rating: number): SatisfactionLevel => {
@@ -15,7 +15,7 @@ const getSatisfactionFromRating = (rating: number): SatisfactionLevel => {
     return SatisfactionLevel.UNSATISFIED;
 };
 
-const PublicFeedbackForm: React.FC<PublicFeedbackFormProps> = ({ setClientFeedback }) => {
+const PublicFeedbackForm: React.FC<PublicFeedbackFormProps> = ({ addClientFeedback }) => {
     const [formState, setFormState] = useState({
         clientName: '',
         rating: 0,
@@ -33,7 +33,7 @@ const PublicFeedbackForm: React.FC<PublicFeedbackFormProps> = ({ setClientFeedba
         setFormState(prev => ({ ...prev, rating }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (formState.rating === 0) {
             alert('Mohon berikan peringkat bintang.');
@@ -41,8 +41,7 @@ const PublicFeedbackForm: React.FC<PublicFeedbackFormProps> = ({ setClientFeedba
         }
         setIsSubmitting(true);
 
-        const newFeedback: ClientFeedback = {
-            id: `FB-PUB-${Date.now()}`,
+        const newFeedback: Omit<ClientFeedback, 'id'> = {
             clientName: formState.clientName,
             rating: formState.rating,
             satisfaction: getSatisfactionFromRating(formState.rating),
@@ -50,11 +49,15 @@ const PublicFeedbackForm: React.FC<PublicFeedbackFormProps> = ({ setClientFeedba
             date: new Date().toISOString(),
         };
 
-        setTimeout(() => {
-            setClientFeedback(prev => [newFeedback, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-            setIsSubmitting(false);
+        try {
+            await addClientFeedback(newFeedback);
             setIsSubmitted(true);
-        }, 1000);
+        } catch (error) {
+            console.error("Failed to submit feedback:", error);
+            alert("Gagal mengirim masukan. Silakan coba lagi.");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     if (isSubmitted) {

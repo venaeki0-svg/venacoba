@@ -4,12 +4,12 @@ import { Lead, LeadStatus, ContactChannel, Profile } from '../types';
 import { leadService } from '../services/database';
 
 interface PublicLeadFormProps {
-    setLeads: React.Dispatch<React.SetStateAction<Lead[]>>;
+    addLead: (lead: Omit<Lead, 'id'>) => Promise<Lead>;
     userProfile: Profile;
     showNotification: (message: string) => void;
 }
 
-const PublicLeadForm: React.FC<PublicLeadFormProps> = ({ setLeads, userProfile }) => {
+const PublicLeadForm: React.FC<PublicLeadFormProps> = ({ addLead, userProfile }) => {
     const [formState, setFormState] = useState({
         name: '',
         eventType: userProfile.projectTypes[0] || '',
@@ -44,9 +44,7 @@ const PublicLeadForm: React.FC<PublicLeadFormProps> = ({ setLeads, userProfile }
                 notes: notes
             };
             
-            // Save to Supabase
-            const createdLead = await leadService.create(newLead);
-            setLeads(prev => [createdLead, ...prev]);
+            await addLead(newLead);
             setIsSubmitting(false);
             setIsSubmitted(true);
         } catch (error) {

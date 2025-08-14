@@ -45,22 +45,25 @@ const initialNewLeadFormState = {
 interface LeadsProps {
     leads: Lead[];
     setLeads: React.Dispatch<React.SetStateAction<Lead[]>>;
+    addLead: (lead: Omit<Lead, 'id'>) => Promise<Lead>;
+    updateLead: (id: string, lead: Partial<Lead>) => Promise<Lead>;
+    deleteLead: (id:string) => Promise<void>;
     clients: Client[];
-    setClients: React.Dispatch<React.SetStateAction<Client[]>>;
+    addClient: (client: Omit<Client, 'id'>) => Promise<Client>;
     projects: Project[];
-    setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
+    addProject: (project: Omit<Project, 'id'>) => Promise<Project>;
     packages: Package[];
     addOns: AddOn[];
     transactions: Transaction[];
-    setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
+    addTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<Transaction>;
     userProfile: Profile;
     showNotification: (message: string) => void;
     cards: Card[];
-    setCards: React.Dispatch<React.SetStateAction<Card[]>>;
+    updateCard: (id: string, card: Partial<Card>) => Promise<Card>;
     pockets: FinancialPocket[];
-    setPockets: React.Dispatch<React.SetStateAction<FinancialPocket[]>>;
+    updatePocket: (id: string, pocket: Partial<FinancialPocket>) => Promise<FinancialPocket>;
     promoCodes: PromoCode[];
-    setPromoCodes: React.Dispatch<React.SetStateAction<PromoCode[]>>;
+    updatePromoCode: (id: string, promoCode: Partial<PromoCode>) => Promise<PromoCode>;
 }
 
 const downloadCSV = (headers: string[], data: (string | number)[][], filename: string) => {
@@ -90,35 +93,38 @@ const downloadCSV = (headers: string[], data: (string | number)[][], filename: s
 };
 
 const QuickLeadForm: React.FC<{
-    setLeads: React.Dispatch<React.SetStateAction<Lead[]>>;
+    addLead: (lead: Omit<Lead, 'id'>) => Promise<Lead>;
     userProfile: Profile;
     showNotification: (message: string) => void;
-}> = ({ setLeads, userProfile, showNotification }) => {
+}> = ({ addLead, userProfile, showNotification }) => {
     const [name, setName] = useState('');
     const [eventType, setEventType] = useState(userProfile.projectTypes[0] || '');
     const [eventDate, setEventDate] = useState('');
     const [eventLocation, setEventLocation] = useState('');
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const notes = `Hai! Terimakasih telah menghubungi #venapictures\nPerkenalkan aku Nina! (๑•ᴗ•๑)♡\nUntuk informasi mengenai pricelist dan availability, mohon mengisi data berikut ya!\nNama : ${name}\nJenis Acara : ${eventType}\nTanggal Acara : ${eventDate ? new Date(eventDate).toLocaleDateString('id-ID') : ''}\nLokasi Acara : ${eventLocation}\nChat kamu akan di balas secepatnya! Terimakasih`;
 
-        const newLead: Lead = {
-            id: `LEAD-QUICK-${Date.now()}`,
-            name: name,
-            contactChannel: ContactChannel.WHATSAPP,
-            location: eventLocation,
-            status: LeadStatus.DISCUSSION,
-            date: new Date().toISOString().split('T')[0],
-            notes: notes
-        };
-        setLeads(prev => [newLead, ...prev]);
-        showNotification(`Prospek baru "${name}" ditambahkan ke kolom Sedang Diskusi.`);
-        
-        setName('');
-        setEventType(userProfile.projectTypes[0] || '');
-        setEventDate('');
-        setEventLocation('');
+        try {
+            await addLead({
+                name: name,
+                contactChannel: ContactChannel.WHATSAPP,
+                location: eventLocation,
+                status: LeadStatus.DISCUSSION,
+                date: new Date().toISOString().split('T')[0],
+                notes: notes
+            });
+            showNotification(`Prospek baru "${name}" ditambahkan ke kolom Sedang Diskusi.`);
+
+            setName('');
+            setEventType(userProfile.projectTypes[0] || '');
+            setEventDate('');
+            setEventLocation('');
+        } catch (error) {
+            console.error("Failed to quick add lead:", error);
+            showNotification("Gagal menambahkan prospek cepat. Silakan coba lagi.");
+        }
     };
 
     return (
@@ -136,7 +142,9 @@ const QuickLeadForm: React.FC<{
 }
 
 const Leads: React.FC<LeadsProps> = ({
-    leads, setLeads, clients, setClients, projects, setProjects, packages, addOns, transactions, setTransactions, userProfile, showNotification, cards, setCards, pockets, setPockets, promoCodes, setPromoCodes
+    leads, setLeads, addLead, updateLead, deleteLead,
+    clients, addClient, projects, addProject, packages, addOns, transactions, addTransaction,
+    userProfile, showNotification, cards, updateCard, pockets, updatePocket, promoCodes, updatePromoCode
 }) => {
     const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
     const [leadToConvert, setLeadToConvert] = useState<Lead | null>(null);
@@ -297,7 +305,7 @@ const Leads: React.FC<LeadsProps> = ({
         e.preventDefault();
     };
 
-    const handleDrop = (e: React.DragEvent<HTMLDivElement>, newStatus: LeadStatus) => {
+    const handleDrop = async (e: React.DragEvent<HTMLDivElement>, newStatus: LeadStatus) => {
         e.preventDefault();
         const leadId = e.dataTransfer.getData("leadId");
         const lead = leads.find(l => l.id === leadId);
@@ -307,7 +315,13 @@ const Leads: React.FC<LeadsProps> = ({
                 setLeadToConvert(lead);
                 setConversionForm(prev => ({...prev, projectName: `Proyek ${lead.name}`, location: lead.location, projectType: userProfile.projectTypes[0]}));
             } else {
-                setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l));
+                try {
+                    await updateLead(leadId, { status: newStatus });
+                    showNotification(`Prospek dipindahkan ke "${newStatus}".`);
+                } catch (error) {
+                    console.error("Failed to update lead status:", error);
+                    showNotification("Gagal memindahkan prospek.");
+                }
             }
         }
         setDraggedLeadId(null);
@@ -323,83 +337,84 @@ const Leads: React.FC<LeadsProps> = ({
         }
     };
     
-    const handleConvertLead = (e: React.FormEvent) => {
+    const handleConvertLead = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!leadToConvert) return;
         
-        const selectedPackage = packages.find(p => p.id === conversionForm.packageId);
-        if (!selectedPackage) { alert("Harap pilih paket layanan."); return; }
-        
-        const selectedAddOns = addOns.filter(addon => conversionForm.selectedAddOnIds.includes(addon.id));
-        const totalBeforeDiscount = selectedPackage.price + selectedAddOns.reduce((sum, addon) => sum + addon.price, 0);
-        
-        let finalDiscountAmount = 0;
-        const promoCode = promoCodes.find(p => p.id === conversionForm.promoCodeId);
-        if (promoCode) {
-            if (promoCode.discountType === 'percentage') {
-                finalDiscountAmount = (totalBeforeDiscount * promoCode.discountValue) / 100;
-            } else {
-                finalDiscountAmount = promoCode.discountValue;
+        try {
+            const selectedPackage = packages.find(p => p.id === conversionForm.packageId);
+            if (!selectedPackage) { showNotification("Harap pilih paket layanan."); return; }
+
+            const selectedAddOns = addOns.filter(addon => conversionForm.selectedAddOnIds.includes(addon.id));
+            const totalBeforeDiscount = selectedPackage.price + selectedAddOns.reduce((sum, addon) => sum + addon.price, 0);
+
+            let finalDiscountAmount = 0;
+            const promoCode = promoCodes.find(p => p.id === conversionForm.promoCodeId);
+            if (promoCode) {
+                if (promoCode.discountType === 'percentage') {
+                    finalDiscountAmount = (totalBeforeDiscount * promoCode.discountValue) / 100;
+                } else {
+                    finalDiscountAmount = promoCode.discountValue;
+                }
             }
+            const totalProject = totalBeforeDiscount - finalDiscountAmount;
+            const dpAmount = conversionForm.dp;
+            const remainingPayment = totalProject - dpAmount;
+
+            const clientResult = await addClient({
+                name: leadToConvert.name, email: conversionForm.email, phone: conversionForm.phone,
+                instagram: conversionForm.instagram, since: new Date().toISOString().split('T')[0], status: ClientStatus.ACTIVE,
+                clientType: ClientType.DIRECT, lastContact: new Date().toISOString(), portalAccessId: crypto.randomUUID(),
+            });
+
+            const physicalItemsFromPackage = selectedPackage.physicalItems.map((item, index) => ({
+                id: `pi-${Date.now()}-${index}`, type: 'Custom' as 'Custom', customName: item.name,
+                details: item.name, cost: item.price,
+            }));
+            const printingCostFromPackage = physicalItemsFromPackage.reduce((sum, item) => sum + item.cost, 0);
+
+            const projectResult = await addProject({
+                projectName: conversionForm.projectName, clientName: clientResult.name, clientId: clientResult.id,
+                projectType: conversionForm.projectType, packageName: selectedPackage.name, packageId: selectedPackage.id,
+                addOns: selectedAddOns, date: conversionForm.date, location: conversionForm.location, progress: 0,
+                status: 'Dikonfirmasi', totalCost: totalProject, amountPaid: dpAmount,
+                paymentStatus: dpAmount > 0 ? (remainingPayment <= 0 ? PaymentStatus.LUNAS : PaymentStatus.DP_TERBAYAR) : PaymentStatus.BELUM_BAYAR,
+                team: [], notes: conversionForm.notes, promoCodeId: conversionForm.promoCodeId || undefined,
+                discountAmount: finalDiscountAmount > 0 ? finalDiscountAmount : undefined,
+                printingDetails: physicalItemsFromPackage, printingCost: printingCostFromPackage, completedDigitalItems: [],
+            });
+
+            await updateLead(leadToConvert.id, { status: LeadStatus.CONVERTED });
+
+            if (dpAmount > 0) {
+                const destinationCard = cards.find(c => c.id === conversionForm.dpDestinationCardId);
+                if (destinationCard) {
+                    await addTransaction({
+                        date: new Date().toISOString().split('T')[0], description: `DP Proyek ${projectResult.projectName}`,
+                        amount: dpAmount, type: TransactionType.INCOME, projectId: projectResult.id, category: 'DP Proyek',
+                        method: 'Transfer Bank', pocketId: 'POC005', cardId: destinationCard.id,
+                    });
+                    // Balance updates are tricky and might be better handled by a backend trigger or a refetch.
+                    // For now, we update the card locally for immediate feedback.
+                    await updateCard(destinationCard.id, { balance: destinationCard.balance + dpAmount });
+                    const pocket = pockets.find(p => p.id === 'POC005');
+                    if (pocket) {
+                        await updatePocket(pocket.id, { amount: pocket.amount + dpAmount });
+                    }
+                }
+            }
+
+            if (promoCode) {
+                await updatePromoCode(promoCode.id, { usageCount: promoCode.usageCount + 1 });
+            }
+
+            showNotification(`Prospek berhasil dikonversi menjadi klien baru.`);
+            setLeadToConvert(null);
+            setConversionForm(initialConversionFormState);
+        } catch (error) {
+            console.error("Failed to convert lead:", error);
+            showNotification("Gagal mengonversi prospek. Silakan coba lagi.");
         }
-        const totalProject = totalBeforeDiscount - finalDiscountAmount;
-        const remainingPayment = totalProject - conversionForm.dp;
-
-        const newClientId = `CLI${Date.now()}`;
-        const newClient: Client = {
-            id: newClientId, name: leadToConvert.name, email: conversionForm.email, phone: conversionForm.phone,
-            instagram: conversionForm.instagram, since: new Date().toISOString().split('T')[0], status: ClientStatus.ACTIVE,
-            clientType: ClientType.DIRECT,
-            lastContact: new Date().toISOString(),
-            portalAccessId: crypto.randomUUID(),
-        };
-
-        const physicalItemsFromPackage = selectedPackage.physicalItems.map((item, index) => ({
-            id: `pi-${Date.now()}-${index}`,
-            type: 'Custom' as 'Custom',
-            customName: item.name,
-            details: item.name,
-            cost: item.price,
-        }));
-
-        const printingCostFromPackage = physicalItemsFromPackage.reduce((sum, item) => sum + item.cost, 0);
-
-        const newProject: Project = {
-            id: `PRJ${Date.now()}`, projectName: conversionForm.projectName, clientName: newClient.name, clientId: newClient.id,
-            projectType: conversionForm.projectType, packageName: selectedPackage.name, packageId: selectedPackage.id,
-            addOns: selectedAddOns, date: conversionForm.date, location: conversionForm.location, progress: 0,
-            status: 'Dikonfirmasi', totalCost: totalProject, amountPaid: conversionForm.dp,
-            paymentStatus: conversionForm.dp > 0 ? (remainingPayment <= 0 ? PaymentStatus.LUNAS : PaymentStatus.DP_TERBAYAR) : PaymentStatus.BELUM_BAYAR,
-            team: [], notes: conversionForm.notes,
-            promoCodeId: conversionForm.promoCodeId || undefined,
-            discountAmount: finalDiscountAmount > 0 ? finalDiscountAmount : undefined,
-            printingDetails: physicalItemsFromPackage,
-            printingCost: printingCostFromPackage,
-            completedDigitalItems: [],
-        };
-
-        setClients(prev => [newClient, ...prev]);
-        setProjects(prev => [newProject, ...prev]);
-        setLeads(prev => prev.map(l => l.id === leadToConvert.id ? { ...l, status: LeadStatus.CONVERTED } : l));
-
-        if (newProject.amountPaid > 0) {
-            const newTransaction: Transaction = {
-                id: `TRN-DP-${newProject.id}`, date: new Date().toISOString().split('T')[0], description: `DP Proyek ${newProject.projectName}`,
-                amount: newProject.amountPaid, type: TransactionType.INCOME, projectId: newProject.id, category: 'DP Proyek',
-                method: 'Transfer Bank', pocketId: 'POC005', cardId: conversionForm.dpDestinationCardId,
-            };
-            setTransactions(prev => [...prev, newTransaction].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-            setCards(prev => prev.map(c => c.id === conversionForm.dpDestinationCardId ? { ...c, balance: c.balance + newProject.amountPaid } : c));
-            setPockets(prev => prev.map(p => p.id === 'POC005' ? { ...p, amount: p.amount + newProject.amountPaid } : p));
-        }
-
-        if (promoCode) {
-            setPromoCodes(prev => prev.map(p => p.id === promoCode.id ? { ...p, usageCount: p.usageCount + 1 } : p));
-        }
-        
-        showNotification(`Prospek berhasil dikonversi menjadi klien baru.`);
-        setLeadToConvert(null);
-        setConversionForm(initialConversionFormState);
     };
     
     const handleNewLeadFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -407,21 +422,24 @@ const Leads: React.FC<LeadsProps> = ({
         setNewLeadForm(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleAddLeadSubmit = (e: React.FormEvent) => {
+    const handleAddLeadSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const newLead: Lead = {
-            id: `LEAD-MANUAL-${Date.now()}`,
-            name: newLeadForm.name,
-            contactChannel: newLeadForm.contactChannel,
-            location: newLeadForm.location,
-            status: LeadStatus.DISCUSSION,
-            date: new Date().toISOString().split('T')[0],
-            notes: newLeadForm.notes,
-        };
-        setLeads(prev => [newLead, ...prev]);
-        setIsAddModalOpen(false);
-        setNewLeadForm(initialNewLeadFormState);
-        showNotification(`Prospek baru "${newLead.name}" berhasil ditambahkan.`);
+        try {
+            await addLead({
+                name: newLeadForm.name,
+                contactChannel: newLeadForm.contactChannel,
+                location: newLeadForm.location,
+                status: LeadStatus.DISCUSSION,
+                date: new Date().toISOString().split('T')[0],
+                notes: newLeadForm.notes,
+            });
+            setIsAddModalOpen(false);
+            setNewLeadForm(initialNewLeadFormState);
+            showNotification(`Prospek baru "${newLeadForm.name}" berhasil ditambahkan.`);
+        } catch (error) {
+            console.error("Failed to add lead:", error);
+            showNotification("Gagal menambahkan prospek. Silakan coba lagi.");
+        }
     };
 
     const handleCloseLeadDetail = () => {
@@ -429,20 +447,28 @@ const Leads: React.FC<LeadsProps> = ({
         setSelectedLead(null);
     };
     
-    const handleUpdateLead = () => {
+    const handleUpdateLead = async () => {
         if (!selectedLead) return;
-        const updatedLead = { ...selectedLead, notes: editedLeadNotes };
-        setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-        showNotification("Prospek berhasil diperbarui.");
-        setIsEditingLead(false);
-        setSelectedLead(updatedLead);
+        try {
+            await updateLead(selectedLead.id, { notes: editedLeadNotes });
+            showNotification("Prospek berhasil diperbarui.");
+            setIsEditingLead(false);
+        } catch (error) {
+            console.error("Failed to update lead:", error);
+            showNotification("Gagal memperbarui prospek.");
+        }
     };
     
-    const handleDeleteLead = (leadId: string) => {
+    const handleDeleteLead = async (leadId: string) => {
         if (window.confirm("Yakin ingin menghapus prospek ini secara permanen?")) {
-            setLeads(prev => prev.filter(l => l.id !== leadId));
-            handleCloseLeadDetail();
-            showNotification("Prospek berhasil dihapus.");
+            try {
+                await deleteLead(leadId);
+                handleCloseLeadDetail();
+                showNotification("Prospek berhasil dihapus.");
+            } catch (error) {
+                console.error("Failed to delete lead:", error);
+                showNotification("Gagal menghapus prospek.");
+            }
         }
     };
     
@@ -513,7 +539,7 @@ const Leads: React.FC<LeadsProps> = ({
                 </div>
             </div>
 
-            <QuickLeadForm setLeads={setLeads} userProfile={userProfile} showNotification={showNotification} />
+            <QuickLeadForm addLead={addLead} userProfile={userProfile} showNotification={showNotification} />
 
             <div className="flex gap-6 overflow-x-auto pb-4 -mx-6 px-6 widget-animate" style={{ animationDelay: '500ms' }}>
                 {statusOrder.map((status) => (

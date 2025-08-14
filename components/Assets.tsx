@@ -32,11 +32,17 @@ const initialFormState: Omit<Asset, 'id'> = {
 interface AssetsProps {
     assets: Asset[];
     setAssets: React.Dispatch<React.SetStateAction<Asset[]>>;
+    addAsset: (asset: Omit<Asset, 'id'>) => Promise<Asset>;
+    updateAsset: (id: string, asset: Partial<Asset>) => Promise<Asset>;
+    deleteAsset: (id: string) => Promise<void>;
     profile: Profile;
     showNotification: (message: string) => void;
 }
 
-const Assets: React.FC<AssetsProps> = ({ assets, setAssets, profile, showNotification }) => {
+const Assets: React.FC<AssetsProps> = ({
+    assets, setAssets, addAsset, updateAsset, deleteAsset,
+    profile, showNotification
+}) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
     const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
@@ -83,31 +89,34 @@ const Assets: React.FC<AssetsProps> = ({ assets, setAssets, profile, showNotific
         }));
     };
 
-    const handleFormSubmit = (e: React.FormEvent) => {
+    const handleFormSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
-        if (modalMode === 'add') {
-            const newAsset: Asset = {
-                id: `ASSET${Date.now()}`,
-                ...formData
-            };
-            setAssets(prev => [newAsset, ...prev].sort((a,b) => a.name.localeCompare(b.name)));
-            showNotification(`Aset "${newAsset.name}" berhasil ditambahkan.`);
-        } else if (modalMode === 'edit' && selectedAsset) {
-            setAssets(prev => prev.map(a => 
-                a.id === selectedAsset.id ? { ...a, ...formData } : a
-            ).sort((a,b) => a.name.localeCompare(b.name)));
-            showNotification(`Aset "${formData.name}" berhasil diperbarui.`);
+        try {
+            if (modalMode === 'add') {
+                await addAsset(formData);
+                showNotification(`Aset "${formData.name}" berhasil ditambahkan.`);
+            } else if (modalMode === 'edit' && selectedAsset) {
+                await updateAsset(selectedAsset.id, formData);
+                showNotification(`Aset "${formData.name}" berhasil diperbarui.`);
+            }
+            handleCloseModal();
+        } catch (error) {
+            console.error("Failed to save asset:", error);
+            showNotification("Gagal menyimpan aset.");
         }
-        
-        handleCloseModal();
     };
 
-    const handleDelete = (assetId: string) => {
+    const handleDelete = async (assetId: string) => {
         const assetName = assets.find(a => a.id === assetId)?.name;
         if (window.confirm(`Apakah Anda yakin ingin menghapus aset "${assetName}"?`)) {
-            setAssets(prev => prev.filter(a => a.id !== assetId));
-            showNotification(`Aset "${assetName}" telah dihapus.`);
+            try {
+                await deleteAsset(assetId);
+                showNotification(`Aset "${assetName}" telah dihapus.`);
+            } catch (error) {
+                console.error("Failed to delete asset:", error);
+                showNotification("Gagal menghapus aset.");
+            }
         }
     };
 

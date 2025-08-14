@@ -219,13 +219,74 @@ export const useDatabase = () => {
     deleteTransaction: (id: string) => deleteItem(id, transactionService.delete(id), setTransactions),
 
     // PromoCode actions
+    addPromoCode: (promoCode: Omit<PromoCode, 'id'>) => createItem(promoCodeService.create(promoCode), setPromoCodes),
     updatePromoCode: (id: string, promoCode: Partial<PromoCode>) => updateItem(promoCodeService.update(id, promoCode), setPromoCodes),
+    deletePromoCode: (id: string) => deleteItem(id, promoCodeService.delete(id), setPromoCodes),
 
     // Card actions
+    addCard: (card: Omit<Card, 'id'>) => createItem(cardService.create(card), setCards),
     updateCard: (id: string, card: Partial<Card>) => updateItem(cardService.update(id, card), setCards),
+    deleteCard: (id: string) => deleteItem(id, cardService.delete(id), setCards),
 
     // Pocket actions
-    updatePocket: (id: string, pocket: Partial<FinancialPocket>) => updateItem(financialPocketService.update(id, pocket), setPockets)
+    addPocket: (pocket: Omit<FinancialPocket, 'id'>) => createItem(financialPocketService.create(pocket), setPockets),
+    updatePocket: (id: string, pocket: Partial<FinancialPocket>) => updateItem(financialPocketService.update(id, pocket), setPockets),
+    deletePocket: (id: string) => deleteItem(id, financialPocketService.delete(id), setPockets),
 
+    // Team Member actions
+    addTeamMember: (teamMember: Omit<TeamMember, 'id'>) => createItem(teamMemberService.create(teamMember), setTeamMembers),
+    updateTeamMember: (id: string, teamMember: Partial<TeamMember>) => updateItem(teamMemberService.update(id, teamMember), setTeamMembers),
+    deleteTeamMember: (id: string) => deleteItem(id, teamMemberService.delete(id), setTeamMembers),
+
+    // Package actions
+    addPackage: (pkg: Omit<Package, 'id'>) => createItem(packageService.create(pkg), setPackages),
+    updatePackage: (id: string, pkg: Partial<Package>) => updateItem(packageService.update(id, pkg), setPackages),
+    deletePackage: (id: string) => deleteItem(id, packageService.delete(id), setPackages),
+
+    // AddOn actions
+    addAddOn: (addOn: Omit<AddOn, 'id'>) => createItem(addOnService.create(addOn), setAddOns),
+    updateAddOn: (id: string, addOn: Partial<AddOn>) => updateItem(addOnService.update(id, addOn), setAddOns),
+    deleteAddOn: (id: string) => deleteItem(id, addOnService.delete(id), setAddOns),
+
+    // Lead actions
+    addLead: (lead: Omit<Lead, 'id'>) => createItem(leadService.create(lead), setLeads),
+    updateLead: (id: string, lead: Partial<Lead>) => updateItem(leadService.update(id, lead), setLeads),
+    deleteLead: (id: string) => deleteItem(id, leadService.delete(id), setLeads),
+
+    // Asset actions
+    addAsset: (asset: Omit<Asset, 'id'>) => createItem(assetService.create(asset), setAssets),
+    updateAsset: (id: string, asset: Partial<Asset>) => updateItem(assetService.update(id, asset), setAssets),
+    deleteAsset: (id: string) => deleteItem(id, assetService.delete(id), setAssets),
+
+    // Contract actions
+    addContract: (contract: Omit<Contract, 'id'>) => createItem(contractService.create(contract), setContracts),
+    updateContract: (id: string, contract: Partial<Contract>) => updateItem(contractService.update(id, contract), setContracts),
+    deleteContract: (id: string) => deleteItem(id, contractService.delete(id), setContracts),
+
+    // SOP actions
+    addSop: (sop: Omit<SOP, 'id'>) => createItem(sopService.create(sop), setSops),
+    updateSop: (id: string, sop: Partial<SOP>) => updateItem(sopService.update(id, sop), setSops),
+    deleteSop: (id: string) => deleteItem(id, sopService.delete(id), setSops),
+
+    // Social Media Post actions
+    addSocialMediaPost: (post: Omit<SocialMediaPost, 'id'>) => createItem(socialMediaPostService.create(post), setSocialMediaPosts),
+    updateSocialMediaPost: (id: string, post: Partial<SocialMediaPost>) => updateItem(socialMediaPostService.update(id, post), setSocialMediaPosts),
+    deleteSocialMediaPost: (id: string) => deleteItem(id, socialMediaPostService.delete(id), setSocialMediaPosts),
+
+    // Client Feedback actions
+    addClientFeedback: (feedback: Omit<ClientFeedback, 'id'>) => createItem(clientFeedbackService.create(feedback), setClientFeedback),
+
+    // Profile actions
+    updateProfile: async (profile: Profile) => {
+      try {
+        const updatedProfile = await profileService.createOrUpdate(profile);
+        setProfile(updatedProfile);
+        return updatedProfile;
+      } catch (err) {
+        console.error('Failed to update profile:', err);
+        setError(err instanceof Error ? err.message : 'Failed to update profile');
+        throw err;
+      }
+    }
   }
 }

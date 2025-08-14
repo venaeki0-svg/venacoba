@@ -323,6 +323,9 @@ const CreatePaymentTab: React.FC<CreatePaymentTabProps> = ({
 interface FreelancersProps {
     teamMembers: TeamMember[];
     setTeamMembers: React.Dispatch<React.SetStateAction<TeamMember[]>>;
+    addTeamMember: (member: Omit<TeamMember, 'id'|'rewardBalance'|'rating'|'performanceNotes'|'portalAccessId'>) => Promise<TeamMember>;
+    updateTeamMember: (id: string, member: Partial<TeamMember>) => Promise<TeamMember>;
+    deleteTeamMember: (id: string) => Promise<void>;
     teamProjectPayments: TeamProjectPayment[];
     setTeamProjectPayments: React.Dispatch<React.SetStateAction<TeamProjectPayment[]>>;
     teamPaymentRecords: TeamPaymentRecord[];
@@ -345,7 +348,8 @@ interface FreelancersProps {
 }
 
 export const Freelancers: React.FC<FreelancersProps> = ({
-    teamMembers, setTeamMembers, teamProjectPayments, setTeamProjectPayments, teamPaymentRecords, setTeamPaymentRecords,
+    teamMembers, setTeamMembers, addTeamMember, updateTeamMember, deleteTeamMember,
+    teamProjectPayments, setTeamProjectPayments, teamPaymentRecords, setTeamPaymentRecords,
     transactions, setTransactions, userProfile, showNotification, initialAction, setInitialAction, projects, setProjects,
     rewardLedgerEntries, setRewardLedgerEntries, pockets, setPockets, cards, setCards, onSignPaymentRecord
 }) => {
@@ -430,33 +434,38 @@ export const Freelancers: React.FC<FreelancersProps> = ({
         setFormData(prev => ({ ...prev, [name]: name === 'standardFee' ? Number(value) : value }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (formMode === 'add') {
-            const newMember: TeamMember = {
-                ...formData,
-                id: `TM${Date.now()}`,
-                rewardBalance: 0,
-                rating: 0,
-                performanceNotes: [],
-                portalAccessId: crypto.randomUUID(),
-            };
-            setTeamMembers(prev => [...prev, newMember]);
-            showNotification(`Freelancer ${newMember.name} berhasil ditambahkan.`);
-        } else if (selectedMember) {
-            setTeamMembers(prev => prev.map(m => m.id === selectedMember.id ? { ...selectedMember, ...formData } : m));
-            showNotification(`Data ${formData.name} berhasil diperbarui.`);
+        try {
+            if (formMode === 'add') {
+                await addTeamMember({
+                    ...formData,
+                });
+                showNotification(`Freelancer ${formData.name} berhasil ditambahkan.`);
+            } else if (selectedMember) {
+                await updateTeamMember(selectedMember.id, formData);
+                showNotification(`Data ${formData.name} berhasil diperbarui.`);
+            }
+            setIsFormOpen(false);
+        } catch (error) {
+            console.error("Failed to save freelancer:", error);
+            showNotification("Gagal menyimpan data freelancer. Silakan coba lagi.");
         }
-        setIsFormOpen(false);
     };
     
-    const handleDelete = (memberId: string) => {
+    const handleDelete = async (memberId: string) => {
         if (teamProjectPayments.some(p => p.teamMemberId === memberId && p.status === 'Unpaid')) {
             alert("Freelancer ini memiliki pembayaran yang belum lunas dan tidak dapat dihapus.");
             return;
         }
         if (window.confirm("Apakah Anda yakin ingin menghapus freelancer ini?")) {
-            setTeamMembers(prev => prev.filter(m => m.id !== memberId));
+            try {
+                await deleteTeamMember(memberId);
+                showNotification("Freelancer berhasil dihapus.");
+            } catch (error) {
+                console.error("Failed to delete freelancer:", error);
+                showNotification("Gagal menghapus freelancer. Silakan coba lagi.");
+            }
         }
     };
     

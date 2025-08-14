@@ -22,12 +22,23 @@ const emptyAddOnForm = { name: '', price: '' };
 interface PackagesProps {
     packages: Package[];
     setPackages: React.Dispatch<React.SetStateAction<Package[]>>;
+    addPackage: (pkg: Omit<Package, 'id'>) => Promise<Package>;
+    updatePackage: (id: string, pkg: Partial<Package>) => Promise<Package>;
+    deletePackage: (id: string) => Promise<void>;
     addOns: AddOn[];
     setAddOns: React.Dispatch<React.SetStateAction<AddOn[]>>;
+    addAddOn: (addOn: Omit<AddOn, 'id'>) => Promise<AddOn>;
+    updateAddOn: (id: string, addOn: Partial<AddOn>) => Promise<AddOn>;
+    deleteAddOn: (id: string) => Promise<void>;
     projects: Project[];
+    showNotification: (message: string) => void;
 }
 
-const Packages: React.FC<PackagesProps> = ({ packages, setPackages, addOns, setAddOns, projects }) => {
+const Packages: React.FC<PackagesProps> = ({
+    packages, setPackages, addPackage, updatePackage, deletePackage,
+    addOns, setAddOns, addAddOn, updateAddOn, deleteAddOn,
+    projects, showNotification
+}) => {
   const [packageFormData, setPackageFormData] = useState(emptyPackageForm);
   const [packageEditMode, setPackageEditMode] = useState<string | null>(null);
 
@@ -93,22 +104,28 @@ const Packages: React.FC<PackagesProps> = ({ packages, setPackages, addOns, setA
     });
   }
 
-  const handlePackageDelete = (pkgId: string) => {
+  const handlePackageDelete = async (pkgId: string) => {
     const isPackageInUse = projects.some(p => p.packageId === pkgId);
     if (isPackageInUse) {
-        alert("Paket ini tidak dapat dihapus karena sedang digunakan oleh satu atau lebih proyek. Hapus atau ubah proyek tersebut terlebih dahulu.");
+        showNotification("Paket ini tidak dapat dihapus karena sedang digunakan oleh satu atau lebih proyek.");
         return;
     }
 
     if (window.confirm("Apakah Anda yakin ingin menghapus paket ini?")) {
-        setPackages(prev => prev.filter(p => p.id !== pkgId));
+        try {
+            await deletePackage(pkgId);
+            showNotification("Paket berhasil dihapus.");
+        } catch (error) {
+            console.error("Failed to delete package:", error);
+            showNotification("Gagal menghapus paket. Silakan coba lagi.");
+        }
     }
   }
 
-  const handlePackageSubmit = (e: React.FormEvent) => {
+  const handlePackageSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!packageFormData.name || !packageFormData.price) {
-        alert('Nama Paket dan Harga tidak boleh kosong.');
+        showNotification('Nama Paket dan Harga tidak boleh kosong.');
         return;
     }
 
@@ -124,14 +141,19 @@ const Packages: React.FC<PackagesProps> = ({ packages, setPackages, addOns, setA
         digitalItems: packageFormData.digitalItems.filter(item => item.trim() !== ''),
     };
     
-    if (packageEditMode) {
-        setPackages(prev => prev.map(p => p.id === packageEditMode ? { ...p, ...packageData } : p));
-    } else {
-        const newPackage: Package = { ...packageData, id: `PKG${Date.now()}` };
-        setPackages(prev => [...prev, newPackage]);
+    try {
+        if (packageEditMode) {
+            await updatePackage(packageEditMode, packageData);
+            showNotification("Paket berhasil diperbarui.");
+        } else {
+            await addPackage(packageData);
+            showNotification("Paket baru berhasil ditambahkan.");
+        }
+        handlePackageCancelEdit();
+    } catch (error) {
+        console.error("Failed to save package:", error);
+        showNotification("Gagal menyimpan paket. Silakan coba lagi.");
     }
-
-    handlePackageCancelEdit();
   };
 
   // --- AddOn Handlers ---
@@ -153,22 +175,28 @@ const Packages: React.FC<PackagesProps> = ({ packages, setPackages, addOns, setA
     });
   }
 
-  const handleAddOnDelete = (addOnId: string) => {
+  const handleAddOnDelete = async (addOnId: string) => {
     const isAddOnInUse = projects.some(p => p.addOns.some(a => a.id === addOnId));
     if (isAddOnInUse) {
-        alert("Add-on ini tidak dapat dihapus karena sedang digunakan oleh satu atau lebih proyek. Hapus atau ubah proyek tersebut terlebih dahulu.");
+        showNotification("Add-on ini tidak dapat dihapus karena sedang digunakan oleh satu atau lebih proyek.");
         return;
     }
 
     if (window.confirm("Apakah Anda yakin ingin menghapus add-on ini?")) {
-        setAddOns(prev => prev.filter(a => a.id !== addOnId));
+        try {
+            await deleteAddOn(addOnId);
+            showNotification("Add-on berhasil dihapus.");
+        } catch (error) {
+            console.error("Failed to delete add-on:", error);
+            showNotification("Gagal menghapus add-on. Silakan coba lagi.");
+        }
     }
   }
 
-  const handleAddOnSubmit = (e: React.FormEvent) => {
+  const handleAddOnSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addOnFormData.name || !addOnFormData.price) {
-        alert('Nama Add-On dan Harga tidak boleh kosong.');
+        showNotification('Nama Add-On dan Harga tidak boleh kosong.');
         return;
     }
 
@@ -177,14 +205,19 @@ const Packages: React.FC<PackagesProps> = ({ packages, setPackages, addOns, setA
         price: Number(addOnFormData.price),
     };
     
-    if (addOnEditMode) {
-        setAddOns(prev => prev.map(a => a.id === addOnEditMode ? { ...a, ...addOnData } : a));
-    } else {
-        const newAddOn: AddOn = { ...addOnData, id: `ADD${Date.now()}` };
-        setAddOns(prev => [...prev, newAddOn]);
+    try {
+        if (addOnEditMode) {
+            await updateAddOn(addOnEditMode, addOnData);
+            showNotification("Add-on berhasil diperbarui.");
+        } else {
+            await addAddOn(addOnData);
+            showNotification("Add-on baru berhasil ditambahkan.");
+        }
+        handleAddOnCancelEdit();
+    } catch (error) {
+        console.error("Failed to save add-on:", error);
+        showNotification("Gagal menyimpan add-on. Silakan coba lagi.");
     }
-
-    handleAddOnCancelEdit();
   };
 
 

@@ -12,11 +12,14 @@ const formatDate = (dateString: string) => {
 
 interface ContractsProps {
     contracts: Contract[];
-    setContracts: React.Dispatch<React.SetStateAction<Contract[]>>;
+    addContract: (contract: Omit<Contract, 'id' | 'createdAt'>) => Promise<Contract>;
+    updateContract: (id: string, contract: Partial<Contract>) => Promise<Contract>;
+    deleteContract: (id: string) => Promise<void>;
     clients: Client[];
     projects: Project[];
     profile: Profile;
     showNotification: (message: string) => void;
+    onSignContract: (contractId: string, signatureDataUrl: string, signer: 'vendor' | 'client') => void;
 }
 
 const initialFormState = {
@@ -45,31 +48,14 @@ const initialFormState = {
 };
 
 const Contracts: React.FC<ContractsProps> = ({ 
-    contracts, setContracts, clients, projects, profile, showNotification 
+    contracts, addContract, updateContract, deleteContract,
+    clients, projects, profile, showNotification, onSignContract
 }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view'>('add');
     const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
     const [formData, setFormData] = useState(initialFormState);
     const [isLoading, setIsLoading] = useState(false);
-
-    // Load contracts on component mount
-    useEffect(() => {
-        loadContracts();
-    }, []);
-
-    const loadContracts = async () => {
-        try {
-            setIsLoading(true);
-            const data = await contractService.getAll();
-            setContracts(data);
-        } catch (error) {
-            console.error('Error loading contracts:', error);
-            showNotification('Gagal memuat data kontrak');
-        } finally {
-            setIsLoading(false);
-        }
-    };
 
     const handleOpenModal = (mode: 'add' | 'edit' | 'view', contract?: Contract) => {
         setModalMode(mode);
@@ -122,66 +108,41 @@ const Contracts: React.FC<ContractsProps> = ({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        const contractData = {
+            contractNumber: formData.contractNumber,
+            clientId: formData.clientId,
+            projectId: formData.projectId,
+            signingDate: formData.signingDate,
+            signingLocation: formData.signingLocation,
+            clientName1: formData.clientName1,
+            clientAddress1: formData.clientAddress1,
+            clientPhone1: formData.clientPhone1,
+            clientName2: formData.clientName2 || undefined,
+            clientAddress2: formData.clientAddress2 || undefined,
+            clientPhone2: formData.clientPhone2 || undefined,
+            shootingDuration: formData.shootingDuration,
+            guaranteedPhotos: formData.guaranteedPhotos,
+            albumDetails: formData.albumDetails,
+            digitalFilesFormat: formData.digitalFilesFormat,
+            otherItems: formData.otherItems,
+            personnelCount: formData.personnelCount,
+            deliveryTimeframe: formData.deliveryTimeframe,
+            dpDate: formData.dpDate,
+            finalPaymentDate: formData.finalPaymentDate,
+            cancellationPolicy: formData.cancellationPolicy,
+            jurisdiction: formData.jurisdiction
+        };
+
         try {
             setIsLoading(true);
-            
             if (modalMode === 'add') {
-                const newContract = await contractService.create({
-                    contractNumber: formData.contractNumber,
-                    clientId: formData.clientId,
-                    projectId: formData.projectId,
-                    signingDate: formData.signingDate,
-                    signingLocation: formData.signingLocation,
-                    clientName1: formData.clientName1,
-                    clientAddress1: formData.clientAddress1,
-                    clientPhone1: formData.clientPhone1,
-                    clientName2: formData.clientName2 || undefined,
-                    clientAddress2: formData.clientAddress2 || undefined,
-                    clientPhone2: formData.clientPhone2 || undefined,
-                    shootingDuration: formData.shootingDuration,
-                    guaranteedPhotos: formData.guaranteedPhotos,
-                    albumDetails: formData.albumDetails,
-                    digitalFilesFormat: formData.digitalFilesFormat,
-                    otherItems: formData.otherItems,
-                    personnelCount: formData.personnelCount,
-                    deliveryTimeframe: formData.deliveryTimeframe,
-                    dpDate: formData.dpDate,
-                    finalPaymentDate: formData.finalPaymentDate,
-                    cancellationPolicy: formData.cancellationPolicy,
-                    jurisdiction: formData.jurisdiction,
-                    createdAt: new Date().toISOString()
-                });
-                setContracts(prev => [newContract, ...prev]);
+                await addContract(contractData);
                 showNotification('Kontrak berhasil ditambahkan');
             } else if (modalMode === 'edit' && selectedContract) {
-                const updatedContract = await contractService.update(selectedContract.id, {
-                    contractNumber: formData.contractNumber,
-                    clientId: formData.clientId,
-                    projectId: formData.projectId,
-                    signingDate: formData.signingDate,
-                    signingLocation: formData.signingLocation,
-                    clientName1: formData.clientName1,
-                    clientAddress1: formData.clientAddress1,
-                    clientPhone1: formData.clientPhone1,
-                    clientName2: formData.clientName2 || undefined,
-                    clientAddress2: formData.clientAddress2 || undefined,
-                    clientPhone2: formData.clientPhone2 || undefined,
-                    shootingDuration: formData.shootingDuration,
-                    guaranteedPhotos: formData.guaranteedPhotos,
-                    albumDetails: formData.albumDetails,
-                    digitalFilesFormat: formData.digitalFilesFormat,
-                    otherItems: formData.otherItems,
-                    personnelCount: formData.personnelCount,
-                    deliveryTimeframe: formData.deliveryTimeframe,
-                    dpDate: formData.dpDate,
-                    finalPaymentDate: formData.finalPaymentDate,
-                    cancellationPolicy: formData.cancellationPolicy,
-                    jurisdiction: formData.jurisdiction
-                });
-                setContracts(prev => prev.map(c => c.id === selectedContract.id ? updatedContract : c));
+                await updateContract(selectedContract.id, contractData);
                 showNotification('Kontrak berhasil diperbarui');
             }
-            
             handleCloseModal();
         } catch (error) {
             console.error('Error saving contract:', error);
@@ -195,8 +156,7 @@ const Contracts: React.FC<ContractsProps> = ({
         if (window.confirm('Yakin ingin menghapus kontrak ini?')) {
             try {
                 setIsLoading(true);
-                await contractService.delete(contractId);
-                setContracts(prev => prev.filter(c => c.id !== contractId));
+                await deleteContract(contractId);
                 showNotification('Kontrak berhasil dihapus');
             } catch (error) {
                 console.error('Error deleting contract:', error);

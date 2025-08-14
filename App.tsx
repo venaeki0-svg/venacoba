@@ -130,20 +130,20 @@ const App: React.FC = () => {
     clients, setClients, addClient, updateClient, deleteClient, 
     projects, setProjects, addProject, updateProject, deleteProject, 
     transactions, setTransactions, addTransaction, updateTransaction, 
-    teamMembers, setTeamMembers, 
-    packages, setPackages, 
-    addOns, setAddOns, 
-    leads, setLeads, 
-    cards, setCards, updateCard, 
-    pockets, setPockets, updatePocket, 
-    contracts, setContracts, 
-    assets, setAssets, 
-    clientFeedback, setClientFeedback, 
+    teamMembers, setTeamMembers, addTeamMember, updateTeamMember, deleteTeamMember,
+    packages, setPackages, addPackage, updatePackage, deletePackage,
+    addOns, setAddOns, addAddOn, updateAddOn, deleteAddOn,
+    leads, setLeads, addLead, updateLead, deleteLead,
+    cards, setCards, addCard, updateCard, deleteCard,
+    pockets, setPockets, addPocket, updatePocket, deletePocket,
+    contracts, setContracts, addContract, updateContract, deleteContract,
+    assets, setAssets, addAsset, updateAsset, deleteAsset,
+    clientFeedback, setClientFeedback, addClientFeedback,
     notifications, setNotifications, 
-    socialMediaPosts, setSocialMediaPosts,
-    promoCodes, setPromoCodes, updatePromoCode, 
-    sops, setSops, 
-    profile, setProfile, 
+    socialMediaPosts, setSocialMediaPosts, addSocialMediaPost, updateSocialMediaPost, deleteSocialMediaPost,
+    promoCodes, setPromoCodes, addPromoCode, updatePromoCode, deletePromoCode,
+    sops, setSops, addSop, updateSop, deleteSop,
+    profile, setProfile, updateProfile,
     teamProjectPayments, setTeamProjectPayments,
     teamPaymentRecords, setTeamPaymentRecords, 
     rewardLedgerEntries, setRewardLedgerEntries, 
@@ -192,28 +192,30 @@ const App: React.FC = () => {
     }
   };
 
-  const handleUpdateRevision = (projectId: string, revisionId: string, updatedData: { freelancerNotes: string, driveLink: string, status: RevisionStatus }) => {
-    setProjects(prevProjects => {
-        return prevProjects.map(p => {
-            if (p.id === projectId) {
-                const updatedRevisions = (p.revisions || []).map(r => {
-                    if (r.id === revisionId) {
-                        return { 
-                            ...r, 
-                            freelancerNotes: updatedData.freelancerNotes,
-                            driveLink: updatedData.driveLink,
-                            status: updatedData.status,
-                            completedDate: updatedData.status === RevisionStatus.COMPLETED ? new Date().toISOString() : r.completedDate,
-                        };
-                    }
-                    return r;
-                });
-                return { ...p, revisions: updatedRevisions };
-            }
-            return p;
-        });
+  const handleUpdateRevision = async (projectId: string, revisionId: string, updatedData: { freelancerNotes: string, driveLink: string, status: RevisionStatus }) => {
+    const projectToUpdate = projects.find(p => p.id === projectId);
+    if (!projectToUpdate) return;
+
+    const updatedRevisions = (projectToUpdate.revisions || []).map(r => {
+        if (r.id === revisionId) {
+            return {
+                ...r,
+                freelancerNotes: updatedData.freelancerNotes,
+                driveLink: updatedData.driveLink,
+                status: updatedData.status,
+                completedDate: updatedData.status === RevisionStatus.COMPLETED ? new Date().toISOString() : r.completedDate,
+            };
+        }
+        return r;
     });
-    showNotification("Update revisi telah berhasil dikirim.");
+
+    try {
+        await updateProject(projectId, { revisions: updatedRevisions });
+        showNotification("Update revisi telah berhasil dikirim.");
+    } catch (error) {
+        console.error("Failed to update revision:", error);
+        showNotification("Gagal mengirim update revisi.");
+    }
   };
 
     const handleClientConfirmation = (projectId: string, stage: 'editing' | 'printing' | 'delivery') => {
@@ -330,14 +332,25 @@ const App: React.FC = () => {
       case ViewType.PROSPEK:
         return <Leads
             leads={leads} setLeads={setLeads}
-            clients={clients} setClients={setClients}
-            projects={projects} setProjects={setProjects}
-            packages={packages} addOns={addOns}
-            transactions={transactions} setTransactions={setTransactions}
-            userProfile={profile} showNotification={showNotification}
-            cards={cards} setCards={setCards}
-            pockets={pockets} setPockets={setPockets}
-            promoCodes={promoCodes} setPromoCodes={setPromoCodes}
+            addLead={addLead}
+            updateLead={updateLead}
+            deleteLead={deleteLead}
+            clients={clients}
+            addClient={addClient}
+            projects={projects}
+            addProject={addProject}
+            packages={packages}
+            addOns={addOns}
+            transactions={transactions}
+            addTransaction={addTransaction}
+            userProfile={profile}
+            showNotification={showNotification}
+            cards={cards}
+            updateCard={updateCard}
+            pockets={pockets}
+            updatePocket={updatePocket}
+            promoCodes={promoCodes}
+            updatePromoCode={updatePromoCode}
         />;
       case ViewType.CLIENTS:
         return <Clients 
@@ -378,22 +391,31 @@ const App: React.FC = () => {
       case ViewType.PROJECTS:
         return <Projects 
           projects={projects} setProjects={setProjects}
+          addProject={addProject}
+          updateProject={updateProject}
+          deleteProject={deleteProject}
           clients={clients}
           packages={packages}
           teamMembers={teamMembers}
           teamProjectPayments={teamProjectPayments} setTeamProjectPayments={setTeamProjectPayments}
-          transactions={transactions} setTransactions={setTransactions}
+          transactions={transactions}
+          addTransaction={addTransaction}
+          updateTransaction={updateTransaction}
+          deleteTransaction={deleteTransaction}
           initialAction={initialAction} setInitialAction={setInitialAction}
           profile={profile}
           showNotification={showNotification}
           cards={cards}
-          setCards={setCards}
+          updateCard={updateCard}
         />;
       case ViewType.TEAM:
         return (
           <Freelancers
             teamMembers={teamMembers}
             setTeamMembers={setTeamMembers}
+            addTeamMember={addTeamMember}
+            updateTeamMember={updateTeamMember}
+            deleteTeamMember={deleteTeamMember}
             teamProjectPayments={teamProjectPayments}
             setTeamProjectPayments={setTeamProjectPayments}
             teamPaymentRecords={teamPaymentRecords}
@@ -417,32 +439,85 @@ const App: React.FC = () => {
         );
       case ViewType.FINANCE:
         return <Finance 
-          transactions={transactions} setTransactions={setTransactions}
-          pockets={pockets} setPockets={setPockets}
+          transactions={transactions}
+          addTransaction={addTransaction}
+          updateTransaction={updateTransaction}
+          deleteTransaction={deleteTransaction}
+          pockets={pockets}
+          setPockets={setPockets}
+          addPocket={addPocket}
+          updatePocket={updatePocket}
+          deletePocket={deletePocket}
           projects={projects}
           profile={profile}
-          cards={cards} setCards={setCards}
+          cards={cards}
+          setCards={setCards}
+          addCard={addCard}
+          updateCard={updateCard}
+          deleteCard={deleteCard}
           teamMembers={teamMembers}
           rewardLedgerEntries={rewardLedgerEntries}
+          showNotification={showNotification}
         />;
       case ViewType.PACKAGES:
-        return <Packages packages={packages} setPackages={setPackages} addOns={addOns} setAddOns={setAddOns} projects={projects} />;
+        return <Packages
+          packages={packages}
+          setPackages={setPackages}
+          addPackage={addPackage}
+          updatePackage={updatePackage}
+          deletePackage={deletePackage}
+          addOns={addOns}
+          setAddOns={setAddOns}
+          addAddOn={addAddOn}
+          updateAddOn={updateAddOn}
+          deleteAddOn={deleteAddOn}
+          projects={projects}
+          showNotification={showNotification}
+        />;
       case ViewType.ASSETS:
-        return <Assets assets={assets} setAssets={setAssets} profile={profile} showNotification={showNotification} />;
+        return <Assets
+          assets={assets}
+          setAssets={setAssets}
+          addAsset={addAsset}
+          updateAsset={updateAsset}
+          deleteAsset={deleteAsset}
+          profile={profile}
+          showNotification={showNotification}
+        />;
       case ViewType.CONTRACTS:
         return <Contracts 
-            contracts={contracts} setContracts={setContracts}
-            clients={clients} projects={projects} profile={profile}
+            contracts={contracts}
+            setContracts={setContracts}
+            addContract={addContract}
+            updateContract={updateContract}
+            deleteContract={deleteContract}
+            clients={clients}
+            projects={projects}
+            profile={profile}
             showNotification={showNotification}
+            onSignContract={handleSignContract}
         />;
       case ViewType.SOP:
-        return <SOPManagement sops={sops} setSops={setSops} profile={profile} showNotification={showNotification} />;
+        return <SOPManagement
+          sops={sops}
+          setSops={setSops}
+          addSop={addSop}
+          updateSop={updateSop}
+          deleteSop={deleteSop}
+          profile={profile}
+          showNotification={showNotification}
+        />;
       case ViewType.SETTINGS:
         return <Settings 
-          profile={profile} setProfile={setProfile} 
-          transactions={transactions} projects={projects}
-          users={users} setUsers={setUsers}
+          profile={profile}
+          setProfile={setProfile}
+          updateProfile={updateProfile}
+          transactions={transactions}
+          projects={projects}
+          users={users}
+          setUsers={setUsers}
           currentUser={currentUser}
+          showNotification={showNotification}
         />;
       case ViewType.CALENDAR:
         return <CalendarView projects={projects} setProjects={setProjects} teamMembers={teamMembers} profile={profile} />;
@@ -456,9 +531,25 @@ const App: React.FC = () => {
             showNotification={showNotification}
         />;
       case ViewType.SOCIAL_MEDIA_PLANNER:
-        return <SocialPlanner posts={socialMediaPosts} setPosts={setSocialMediaPosts} projects={projects} showNotification={showNotification} />;
+        return <SocialPlanner
+          posts={socialMediaPosts}
+          setPosts={setSocialMediaPosts}
+          addPost={addSocialMediaPost}
+          updatePost={updateSocialMediaPost}
+          deletePost={deleteSocialMediaPost}
+          projects={projects}
+          showNotification={showNotification}
+        />;
       case ViewType.PROMO_CODES:
-        return <PromoCodes promoCodes={promoCodes} setPromoCodes={setPromoCodes} projects={projects} showNotification={showNotification} />;
+        return <PromoCodes
+          promoCodes={promoCodes}
+          setPromoCodes={setPromoCodes}
+          addPromoCode={addPromoCode}
+          updatePromoCode={updatePromoCode}
+          deletePromoCode={deletePromoCode}
+          projects={projects}
+          showNotification={showNotification}
+        />;
       default:
         return <Dashboard 
           projects={projects} 
@@ -483,34 +574,31 @@ const App: React.FC = () => {
   // ROUTING FOR PUBLIC PAGES
   if (route.startsWith('#/public-booking')) {
     return <PublicBookingForm 
-        setClients={setClients}
-        setProjects={setProjects}
+        addClient={addClient}
+        addProject={addProject}
+        addLead={addLead}
+        addTransaction={addTransaction}
+        updatePromoCode={updatePromoCode}
         packages={packages}
         addOns={addOns}
-        setTransactions={setTransactions}
         userProfile={profile}
         cards={cards}
-        setCards={setCards}
-        pockets={pockets}
-        setPockets={setPockets}
         promoCodes={promoCodes}
-        setPromoCodes={setPromoCodes}
         showNotification={showNotification}
-        setLeads={setLeads}
     />;
   }
   if (route.startsWith('#/public-lead-form')) {
     return <PublicLeadForm 
-        setLeads={setLeads}
+        addLead={addLead}
         userProfile={profile}
         showNotification={showNotification}
     />;
   }
   if (route.startsWith('#/feedback')) {
-    return <PublicFeedbackForm setClientFeedback={setClientFeedback} />;
+    return <PublicFeedbackForm addClientFeedback={addClientFeedback} />;
   }
   if (route.startsWith('#/suggestion-form')) {
-    return <SuggestionForm setLeads={setLeads} />;
+    return <SuggestionForm addLead={addLead} />;
   }
   if (route.startsWith('#/revision-form')) {
     return <PublicRevisionForm projects={projects} teamMembers={teamMembers} onUpdateRevision={handleUpdateRevision} />;

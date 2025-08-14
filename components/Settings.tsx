@@ -236,11 +236,13 @@ const ProjectStatusManager: React.FC<{
 interface SettingsProps {
     profile: Profile;
     setProfile: React.Dispatch<React.SetStateAction<Profile>>;
+    updateProfile: (profile: Profile) => Promise<Profile>;
     transactions: Transaction[];
     projects: Project[];
     users: User[];
     setUsers: React.Dispatch<React.SetStateAction<User[]>>;
     currentUser: User | null;
+    showNotification: (message: string) => void;
 }
 
 const emptyUserForm = { 
@@ -252,7 +254,10 @@ const emptyUserForm = {
     permissions: [] as ViewType[],
 };
 
-const Settings: React.FC<SettingsProps> = ({ profile, setProfile, transactions, projects, users, setUsers, currentUser }) => {
+const Settings: React.FC<SettingsProps> = ({
+    profile, setProfile, updateProfile,
+    transactions, projects, users, setUsers, currentUser, showNotification
+}) => {
     const [activeTab, setActiveTab] = useState('profile');
     const [showSuccess, setShowSuccess] = useState(false);
 
@@ -291,10 +296,17 @@ const Settings: React.FC<SettingsProps> = ({ profile, setProfile, transactions, 
         }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setShowSuccess(true);
-        setTimeout(() => setShowSuccess(false), 2000);
+        try {
+            await updateProfile(profile);
+            setShowSuccess(true);
+            setTimeout(() => setShowSuccess(false), 2000);
+            showNotification("Profil berhasil diperbarui.");
+        } catch (error) {
+            console.error("Failed to update profile:", error);
+            showNotification("Gagal memperbarui profil.");
+        }
     }
     
     // --- User Management Handlers ---
@@ -408,19 +420,22 @@ const Settings: React.FC<SettingsProps> = ({ profile, setProfile, transactions, 
         if (!incomeCategoryInput.trim()) return;
         const newCategory = incomeCategoryInput.trim();
         const categories = profile.incomeCategories || [];
+        let newProfile: Profile;
 
         if (editingIncomeCategory) { // Update
             if (newCategory !== editingIncomeCategory && categories.includes(newCategory)) {
-                alert('Kategori ini sudah ada.'); return;
+                showNotification('Kategori ini sudah ada.',); return;
             }
-            setProfile(prev => ({ ...prev, incomeCategories: categories.map(c => c === editingIncomeCategory ? newCategory : c).sort() }));
+            newProfile = { ...profile, incomeCategories: categories.map(c => c === editingIncomeCategory ? newCategory : c).sort() };
             setEditingIncomeCategory(null);
         } else { // Add
             if (categories.includes(newCategory)) {
-                alert('Kategori ini sudah ada.'); return;
+                showNotification('Kategori ini sudah ada.'); return;
             }
-            setProfile(prev => ({ ...prev, incomeCategories: [...categories, newCategory].sort() }));
+            newProfile = { ...profile, incomeCategories: [...categories, newCategory].sort() };
         }
+        setProfile(newProfile);
+        updateProfile(newProfile);
         setIncomeCategoryInput('');
     };
 
@@ -428,10 +443,12 @@ const Settings: React.FC<SettingsProps> = ({ profile, setProfile, transactions, 
     const handleDeleteIncomeCategory = (category: string) => {
         const isCategoryInUse = transactions.some(t => t.category === category && t.type === 'Pemasukan');
         if (isCategoryInUse) {
-            alert(`Kategori "${category}" tidak dapat dihapus karena sedang digunakan dalam transaksi.`); return;
+            showNotification(`Kategori "${category}" tidak dapat dihapus karena sedang digunakan dalam transaksi.`); return;
         }
         if (window.confirm(`Yakin ingin menghapus kategori "${category}"?`)) {
-            setProfile(prev => ({ ...prev, incomeCategories: (prev.incomeCategories || []).filter(c => c !== category) }));
+            const newProfile = { ...profile, incomeCategories: (profile.incomeCategories || []).filter(c => c !== category) };
+            setProfile(newProfile);
+            updateProfile(newProfile);
         }
     };
     
@@ -439,18 +456,21 @@ const Settings: React.FC<SettingsProps> = ({ profile, setProfile, transactions, 
         if (!expenseCategoryInput.trim()) return;
         const newCategory = expenseCategoryInput.trim();
         const categories = profile.expenseCategories || [];
+        let newProfile: Profile;
         if (editingExpenseCategory) {
             if (newCategory !== editingExpenseCategory && categories.includes(newCategory)) {
-                alert('Kategori ini sudah ada.'); return;
+                showNotification('Kategori ini sudah ada.'); return;
             }
-            setProfile(prev => ({ ...prev, expenseCategories: categories.map(c => c === editingExpenseCategory ? newCategory : c).sort() }));
+            newProfile = { ...profile, expenseCategories: categories.map(c => c === editingExpenseCategory ? newCategory : c).sort() };
             setEditingExpenseCategory(null);
         } else {
             if (categories.includes(newCategory)) {
-                alert('Kategori ini sudah ada.'); return;
+                showNotification('Kategori ini sudah ada.'); return;
             }
-            setProfile(prev => ({ ...prev, expenseCategories: [...categories, newCategory].sort() }));
+            newProfile = { ...profile, expenseCategories: [...categories, newCategory].sort() };
         }
+        setProfile(newProfile);
+        updateProfile(newProfile);
         setExpenseCategoryInput('');
     };
     
@@ -458,10 +478,12 @@ const Settings: React.FC<SettingsProps> = ({ profile, setProfile, transactions, 
     const handleDeleteExpenseCategory = (category: string) => {
         const isCategoryInUse = transactions.some(t => t.category === category && t.type === 'Pengeluaran');
         if (isCategoryInUse) {
-            alert(`Kategori "${category}" tidak dapat dihapus karena sedang digunakan dalam transaksi.`); return;
+            showNotification(`Kategori "${category}" tidak dapat dihapus karena sedang digunakan dalam transaksi.`); return;
         }
         if (window.confirm(`Yakin ingin menghapus kategori "${category}"?`)) {
-            setProfile(prev => ({ ...prev, expenseCategories: (prev.expenseCategories || []).filter(c => c !== category) }));
+            const newProfile = { ...profile, expenseCategories: (profile.expenseCategories || []).filter(c => c !== category) };
+            setProfile(newProfile);
+            updateProfile(newProfile);
         }
     };
 
@@ -469,18 +491,21 @@ const Settings: React.FC<SettingsProps> = ({ profile, setProfile, transactions, 
         if (!projectTypeInput.trim()) return;
         const newType = projectTypeInput.trim();
         const types = profile.projectTypes || [];
+        let newProfile: Profile;
         if (editingProjectType) {
             if (newType !== editingProjectType && types.includes(newType)) {
-                alert('Jenis proyek ini sudah ada.'); return;
+                showNotification('Jenis proyek ini sudah ada.'); return;
             }
-            setProfile(prev => ({ ...prev, projectTypes: types.map(t => t === editingProjectType ? newType : t).sort() }));
+            newProfile = { ...profile, projectTypes: types.map(t => t === editingProjectType ? newType : t).sort() };
             setEditingProjectType(null);
         } else {
             if (types.includes(newType)) {
-                alert('Jenis proyek ini sudah ada.'); return;
+                showNotification('Jenis proyek ini sudah ada.'); return;
             }
-            setProfile(prev => ({ ...prev, projectTypes: [...types, newType].sort() }));
+            newProfile = { ...profile, projectTypes: [...types, newType].sort() };
         }
+        setProfile(newProfile);
+        updateProfile(newProfile);
         setProjectTypeInput('');
     };
 
@@ -488,10 +513,12 @@ const Settings: React.FC<SettingsProps> = ({ profile, setProfile, transactions, 
     const handleDeleteProjectType = (type: string) => {
         const isTypeInUse = projects.some(p => p.projectType === type);
         if (isTypeInUse) {
-            alert(`Jenis proyek "${type}" tidak dapat dihapus karena sedang digunakan.`); return;
+            showNotification(`Jenis proyek "${type}" tidak dapat dihapus karena sedang digunakan.`); return;
         }
         if (window.confirm(`Yakin ingin menghapus jenis proyek "${type}"?`)) {
-            setProfile(prev => ({ ...prev, projectTypes: (prev.projectTypes || []).filter(t => t !== type) }));
+            const newProfile = { ...profile, projectTypes: (profile.projectTypes || []).filter(t => t !== type) };
+            setProfile(newProfile);
+            updateProfile(newProfile);
         }
     };
 
@@ -499,28 +526,33 @@ const Settings: React.FC<SettingsProps> = ({ profile, setProfile, transactions, 
         if (!eventTypeInput.trim()) return;
         const newType = eventTypeInput.trim();
         const types = profile.eventTypes || [];
+        let newProfile: Profile;
         if (editingEventType) {
             if (newType !== editingEventType && types.includes(newType)) {
-                alert('Jenis acara ini sudah ada.'); return;
+                showNotification('Jenis acara ini sudah ada.'); return;
             }
-            setProfile(prev => ({ ...prev, eventTypes: types.map(t => t === editingEventType ? newType : t).sort() }));
+            newProfile = { ...profile, eventTypes: types.map(t => t === editingEventType ? newType : t).sort() };
             setEditingEventType(null);
         } else {
             if (types.includes(newType)) {
-                alert('Jenis acara ini sudah ada.'); return;
+                showNotification('Jenis acara ini sudah ada.'); return;
             }
-            setProfile(prev => ({ ...prev, eventTypes: [...types, newType].sort() }));
+            newProfile = { ...profile, eventTypes: [...types, newType].sort() };
         }
+        setProfile(newProfile);
+        updateProfile(newProfile);
         setEventTypeInput('');
     };
     const handleEditEventType = (type: string) => { setEditingEventType(type); setEventTypeInput(type); };
     const handleDeleteEventType = (type: string) => {
         const isTypeInUse = projects.some(p => p.clientName === 'Acara Internal' && p.projectType === type);
         if (isTypeInUse) {
-            alert(`Jenis acara "${type}" tidak dapat dihapus karena sedang digunakan di kalender.`); return;
+            showNotification(`Jenis acara "${type}" tidak dapat dihapus karena sedang digunakan di kalender.`); return;
         }
         if (window.confirm(`Yakin ingin menghapus jenis acara "${type}"?`)) {
-            setProfile(prev => ({ ...prev, eventTypes: (prev.eventTypes || []).filter(t => t !== type) }));
+            const newProfile = { ...profile, eventTypes: (prev.eventTypes || []).filter(t => t !== type) };
+            setProfile(newProfile);
+            updateProfile(newProfile);
         }
     };
 
@@ -528,21 +560,26 @@ const Settings: React.FC<SettingsProps> = ({ profile, setProfile, transactions, 
         if (!sopCategoryInput.trim()) return;
         const newCat = sopCategoryInput.trim();
         const cats = profile.sopCategories || [];
+        let newProfile: Profile;
         if (editingSopCategory) {
-            if (newCat !== editingSopCategory && cats.includes(newCat)) { alert('Kategori ini sudah ada.'); return; }
-            setProfile(prev => ({ ...prev, sopCategories: cats.map(c => c === editingSopCategory ? newCat : c).sort() }));
+            if (newCat !== editingSopCategory && cats.includes(newCat)) { showNotification('Kategori ini sudah ada.'); return; }
+            newProfile = { ...profile, sopCategories: cats.map(c => c === editingSopCategory ? newCat : c).sort() };
             setEditingSopCategory(null);
         } else {
-            if (cats.includes(newCat)) { alert('Kategori ini sudah ada.'); return; }
-            setProfile(prev => ({ ...prev, sopCategories: [...cats, newCat].sort() }));
+            if (cats.includes(newCat)) { showNotification('Kategori ini sudah ada.'); return; }
+            newProfile = { ...profile, sopCategories: [...cats, newCat].sort() };
         }
+        setProfile(newProfile);
+        updateProfile(newProfile);
         setSopCategoryInput('');
     };
     const handleEditSopCategory = (cat: string) => { setEditingSopCategory(cat); setSopCategoryInput(cat); };
     const handleDeleteSopCategory = (cat: string) => {
         // Not checking for usage in SOPs for now to keep it simple.
         if (window.confirm(`Yakin ingin menghapus kategori SOP "${cat}"?`)) {
-            setProfile(prev => ({ ...prev, sopCategories: (prev.sopCategories || []).filter(c => c !== cat) }));
+            const newProfile = { ...profile, sopCategories: (prev.sopCategories || []).filter(c => c !== cat) };
+            setProfile(newProfile);
+            updateProfile(newProfile);
         }
     };
     
@@ -692,7 +729,9 @@ const Settings: React.FC<SettingsProps> = ({ profile, setProfile, transactions, 
                     <ProjectStatusManager
                         config={profile.projectStatusConfig}
                         onConfigChange={(newConfig) => {
-                            setProfile(p => ({ ...p, projectStatusConfig: newConfig }));
+                            const newProfile = { ...profile, projectStatusConfig: newConfig };
+                            setProfile(newProfile);
+                            updateProfile(newProfile);
                         }}
                         projects={projects}
                     />

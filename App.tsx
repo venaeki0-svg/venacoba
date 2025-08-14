@@ -126,10 +126,10 @@ const App: React.FC = () => {
 
   // Load all data from Supabase using custom hook
   const {
-    loading, error: dbError, users, setUsers, 
+    loading, error: dbError, users, setUsers, addUser, updateUser, deleteUser,
     clients, setClients, addClient, updateClient, deleteClient, 
     projects, setProjects, addProject, updateProject, deleteProject, 
-    transactions, setTransactions, addTransaction, updateTransaction, 
+    transactions, setTransactions, addTransaction, updateTransaction, deleteTransaction,
     teamMembers, setTeamMembers, addTeamMember, updateTeamMember, deleteTeamMember,
     packages, setPackages, addPackage, updatePackage, deletePackage,
     addOns, setAddOns, addAddOn, updateAddOn, deleteAddOn,
@@ -516,11 +516,25 @@ const App: React.FC = () => {
           projects={projects}
           users={users}
           setUsers={setUsers}
+          addUser={addUser}
+          updateUser={updateUser}
+          deleteUser={deleteUser}
           currentUser={currentUser}
           showNotification={showNotification}
         />;
       case ViewType.CALENDAR:
-        return <CalendarView projects={projects} setProjects={setProjects} teamMembers={teamMembers} profile={profile} />;
+        return <CalendarView
+          projects={projects}
+          setProjects={setProjects}
+          addProject={addProject}
+          updateProject={updateProject}
+          deleteProject={deleteProject}
+          socialMediaPosts={socialMediaPosts}
+          updateSocialMediaPost={updateSocialMediaPost}
+          deleteSocialMediaPost={deleteSocialMediaPost}
+          teamMembers={teamMembers}
+          profile={profile}
+        />;
       case ViewType.CLIENT_REPORTS:
         return <ClientReports 
             clients={clients}
@@ -528,6 +542,7 @@ const App: React.FC = () => {
             projects={projects}
             feedback={clientFeedback}
             setFeedback={setClientFeedback}
+            addClientFeedback={addClientFeedback}
             showNotification={showNotification}
         />;
       case ViewType.SOCIAL_MEDIA_PLANNER:

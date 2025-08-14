@@ -276,6 +276,11 @@ export const useDatabase = () => {
     // Client Feedback actions
     addClientFeedback: (feedback: Omit<ClientFeedback, 'id'>) => createItem(clientFeedbackService.create(feedback), setClientFeedback),
 
+    // User actions
+    addUser: (user: Omit<User, 'id'>) => createItem(userService.create(user), setUsers),
+    updateUser: (id: string, user: Partial<User>) => updateItem(userService.update(id, user), setUsers),
+    deleteUser: (id: string) => deleteItem(id, userService.delete(id), setUsers),
+
     // Profile actions
     updateProfile: async (profile: Profile) => {
       try {

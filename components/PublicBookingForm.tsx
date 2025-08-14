@@ -80,7 +80,7 @@ const PublicBookingForm: React.FC<PublicBookingFormProps> = ({
     addClient, addProject, addLead, addTransaction, updatePromoCode,
     packages, addOns, userProfile, cards, promoCodes, showNotification
 }) => {
-    const [formData, setFormData] = useState({...initialFormState, projectType: userProfile.projectTypes[0] || ''});
+    const [formData, setFormData] = useState(initialFormState);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [promoFeedback, setPromoFeedback] = useState({ type: '', message: '' });
@@ -89,13 +89,19 @@ const PublicBookingForm: React.FC<PublicBookingFormProps> = ({
     const [isContractModalOpen, setIsContractModalOpen] = useState(false);
     const formRef = useRef<HTMLDivElement>(null);
 
+    React.useEffect(() => {
+        if (userProfile?.projectTypes?.length > 0) {
+            setFormData(prev => ({ ...prev, projectType: userProfile.projectTypes[0] }));
+        }
+    }, [userProfile]);
+
     const handlePackageSelect = (packageId: string) => {
         setFormData(prev => ({ ...prev, packageId }));
         formRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
     const formattedTerms = useMemo(() => {
-        if (!userProfile.termsAndConditions) return null;
+        if (!userProfile?.termsAndConditions) return null;
         return userProfile.termsAndConditions.split('\n').map((line, index) => {
             if (line.trim() === '') return <div key={index} className="h-4"></div>;
             const emojiRegex = /^(📜|📅|💰|📦|⏱|➕)\s/;
@@ -282,13 +288,13 @@ const PublicBookingForm: React.FC<PublicBookingFormProps> = ({
                     <p className="font-bold">PIHAK PERTAMA</p>
                     <table>
                         <tbody>
-                            <tr><td className="pr-4 align-top">Nama</td><td>: {userProfile.fullName}</td></tr>
+                            <tr><td className="pr-4 align-top">Nama</td><td>: {userProfile?.fullName}</td></tr>
                             <tr><td className="pr-4 align-top">Jabatan</td><td>: Pemilik Usaha</td></tr>
-                            <tr><td className="pr-4 align-top">Alamat</td><td>: {userProfile.address}</td></tr>
-                            <tr><td className="pr-4 align-top">Nomor Telepon</td><td>: {userProfile.phone}</td></tr>
+                            <tr><td className="pr-4 align-top">Alamat</td><td>: {userProfile?.address}</td></tr>
+                            <tr><td className="pr-4 align-top">Nomor Telepon</td><td>: {userProfile?.phone}</td></tr>
                         </tbody>
                     </table>
-                    <p className="mt-1">Dalam hal ini bertindak atas nama perusahaannya, {userProfile.companyName}, selanjutnya disebut sebagai <strong>PIHAK PERTAMA</strong>.</p>
+                    <p className="mt-1">Dalam hal ini bertindak atas nama perusahaannya, {userProfile?.companyName}, selanjutnya disebut sebagai <strong>PIHAK PERTAMA</strong>.</p>
                 </div>
 
                 <div className="my-4">
@@ -307,7 +313,7 @@ const PublicBookingForm: React.FC<PublicBookingFormProps> = ({
 
                 <div className="space-y-4 mt-6">
                     <div><h4 className="font-bold text-center">PASAL 1: RUANG LINGKUP PEKERJAAN</h4><p>PIHAK PERTAMA akan memberikan jasa fotografi dan/atau videografi sesuai dengan paket layanan yang dipilih oleh PIHAK KEDUA untuk acara pada tanggal [Tanggal Acara] di lokasi [Lokasi Acara].</p></div>
-                    <div><h4 className="font-bold text-center">PASAL 2: BIAYA DAN PEMBAYARAN</h4><p>Total biaya jasa adalah sebesar [Total Biaya Paket]. Pembayaran dilakukan dengan sistem: Uang Muka (DP) sebesar 30-50% saat penandatanganan kontrak, dan pelunasan paling lambat H-3 sebelum Hari Pelaksanaan. Pembayaran ditransfer ke rekening: {userProfile.bankAccount}.</p></div>
+                    <div><h4 className="font-bold text-center">PASAL 2: BIAYA DAN PEMBAYARAN</h4><p>Total biaya jasa adalah sebesar [Total Biaya Paket]. Pembayaran dilakukan dengan sistem: Uang Muka (DP) sebesar 30-50% saat penandatanganan kontrak, dan pelunasan paling lambat H-3 sebelum Hari Pelaksanaan. Pembayaran ditransfer ke rekening: {userProfile?.bankAccount}.</p></div>
                     <div><h4 className="font-bold text-center">PASAL 3: PENYERAHAN HASIL</h4><p>PIHAK PERTAMA akan menyerahkan seluruh hasil pekerjaan dalam jangka waktu yang telah ditentukan dalam detail paket, terhitung setelah Hari Pelaksanaan.</p></div>
                     <div><h4 className="font-bold text-center">PASAL 4: PEMBATALAN</h4><p>Jika terjadi pembatalan oleh PIHAK KEDUA, maka Uang Muka (DP) yang telah dibayarkan tidak dapat dikembalikan. Ketentuan lebih lanjut diatur dalam Syarat & Ketentuan Umum.</p></div>
                     <div><h4 className="font-bold text-center">PASAL 5: LAIN-LAIN</h4><p>Hal-hal lain yang belum diatur dalam perjanjian ini akan dibicarakan dan diselesaikan secara musyawarah oleh kedua belah pihak.</p></div>
@@ -319,7 +325,7 @@ const PublicBookingForm: React.FC<PublicBookingFormProps> = ({
                         <div className="h-28 my-1 flex flex-col items-center justify-center text-gray-400 text-xs">
                             <span className="italic">(Tanda Tangan & Nama)</span>
                         </div>
-                        <p className="border-t-2 border-dotted w-4/5 mx-auto pt-1">({userProfile.fullName})</p>
+                        <p className="border-t-2 border-dotted w-4/5 mx-auto pt-1">({userProfile?.fullName})</p>
                     </div>
                      <div className="text-center w-2/5">
                         <p>PIHAK KEDUA</p>
@@ -331,6 +337,14 @@ const PublicBookingForm: React.FC<PublicBookingFormProps> = ({
             </div>
         );
     };
+
+    if (!userProfile || packages.length === 0) {
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-brand-bg">
+                <div className="w-16 h-16 border-4 border-brand-accent border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        );
+    }
 
     if (isSubmitted) {
         return (
@@ -378,7 +392,7 @@ const PublicBookingForm: React.FC<PublicBookingFormProps> = ({
                 <div ref={formRef} className="w-full max-w-3xl mx-auto">
                      <div className="bg-brand-surface p-8 rounded-2xl shadow-lg border border-brand-border">
                         <div className="text-center mb-8">
-                            <h1 className="text-3xl font-bold text-gradient">{userProfile.companyName}</h1>
+                            <h1 className="text-3xl font-bold text-gradient">{userProfile?.companyName}</h1>
                             <p className="text-sm text-brand-text-secondary mt-2">Formulir Pemesanan Layanan</p>
                         </div>
 
@@ -391,7 +405,7 @@ const PublicBookingForm: React.FC<PublicBookingFormProps> = ({
                                     <div className="input-group"><input type="email" id="email" name="email" value={formData.email} onChange={handleFormChange} className="input-field" placeholder=" " required/><label htmlFor="email" className="input-label">Email</label></div>
                                     <div className="input-group"><input type="text" id="projectName" name="projectName" value={formData.projectName} onChange={handleFormChange} className="input-field" placeholder=" " required/><label htmlFor="projectName" className="input-label">Nama Acara (e.g., Wedding John & Jane)</label></div>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div className="input-group"><select id="projectType" name="projectType" value={formData.projectType} onChange={handleFormChange} className="input-field" required><option value="" disabled>Pilih Jenis...</option>{userProfile.projectTypes.map(pt => <option key={pt} value={pt}>{pt}</option>)}</select><label htmlFor="projectType" className="input-label">Jenis Acara</label></div>
+                                        <div className="input-group"><select id="projectType" name="projectType" value={formData.projectType} onChange={handleFormChange} className="input-field" required><option value="" disabled>Pilih Jenis...</option>{(userProfile?.projectTypes || []).map(pt => <option key={pt} value={pt}>{pt}</option>)}</select><label htmlFor="projectType" className="input-label">Jenis Acara</label></div>
                                         <div className="input-group"><input type="date" id="date" name="date" value={formData.date} onChange={handleFormChange} className="input-field" placeholder=" "/><label htmlFor="date" className="input-label">Tanggal Acara</label></div>
                                     </div>
                                     <div className="input-group"><input type="text" id="location" name="location" value={formData.location} onChange={handleFormChange} className="input-field" placeholder=" "/><label htmlFor="location" className="input-label">Lokasi Acara</label></div>
@@ -418,7 +432,7 @@ const PublicBookingForm: React.FC<PublicBookingFormProps> = ({
                                         <div className="flex justify-between items-center font-bold text-lg"><span className="text-brand-text-secondary">Total Biaya</span><span className="text-brand-text-light">{formatCurrency(totalProject)}</span></div>
                                         <hr className="border-brand-border"/>
                                         <p className="text-sm text-brand-text-secondary">Silakan transfer Uang Muka (DP) ke rekening berikut:</p>
-                                        <p className="font-semibold text-brand-text-light text-center py-2 bg-brand-input rounded-md">{userProfile.bankAccount}</p>
+                                        <p className="font-semibold text-brand-text-light text-center py-2 bg-brand-input rounded-md">{userProfile?.bankAccount}</p>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="input-group !mt-2"><input type="number" name="dp" id="dp" value={formData.dp} onChange={handleFormChange} className="input-field text-right" placeholder=" "/><label htmlFor="dp" className="input-label">Jumlah DP Ditransfer</label></div>
                                             <div className="input-group !mt-2"><input type="text" name="dpPaymentRef" id="dpPaymentRef" value={formData.dpPaymentRef} onChange={handleFormChange} className="input-field" placeholder=" "/><label htmlFor="dpPaymentRef" className="input-label">No. Ref / 4 Digit Rek</label></div>

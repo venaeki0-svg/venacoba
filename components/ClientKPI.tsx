@@ -28,10 +28,11 @@ interface ClientReportsProps {
     projects: Project[];
     feedback: ClientFeedback[];
     setFeedback: React.Dispatch<React.SetStateAction<ClientFeedback[]>>;
+    addClientFeedback: (feedback: Omit<ClientFeedback, 'id' | 'createdAt'>) => Promise<ClientFeedback>;
     showNotification: (message: string) => void;
 }
 
-const ClientReports: React.FC<ClientReportsProps> = ({ clients, leads, projects, feedback, setFeedback, showNotification }) => {
+const ClientReports: React.FC<ClientReportsProps> = ({ clients, leads, projects, feedback, addClientFeedback, showNotification }) => {
     const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
     const [manualFeedbackForm, setManualFeedbackForm] = useState(emptyFeedbackForm);
@@ -159,20 +160,25 @@ const ClientReports: React.FC<ClientReportsProps> = ({ clients, leads, projects,
         return SatisfactionLevel.UNSATISFIED;
     };
 
-    const handleManualFeedbackSubmit = (e: React.FormEvent) => {
+    const handleManualFeedbackSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const newFeedback: ClientFeedback = {
-            id: `FB-MANUAL-${Date.now()}`,
+        const newFeedback: Omit<ClientFeedback, 'id' | 'createdAt'> = {
             date: new Date().toISOString(),
             clientName: manualFeedbackForm.clientName,
             rating: manualFeedbackForm.rating,
             satisfaction: getSatisfactionFromRating(manualFeedbackForm.rating),
             feedback: manualFeedbackForm.feedback
         };
-        setFeedback(prev => [newFeedback, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-        setIsFeedbackModalOpen(false);
-        setManualFeedbackForm(emptyFeedbackForm);
-        showNotification('Masukan berhasil ditambahkan.');
+
+        try {
+            await addClientFeedback(newFeedback);
+            setIsFeedbackModalOpen(false);
+            setManualFeedbackForm(emptyFeedbackForm);
+            showNotification('Masukan berhasil ditambahkan.');
+        } catch (error) {
+            console.error("Failed to add manual feedback:", error);
+            showNotification('Gagal menambahkan masukan.');
+        }
     };
 
     const activeClientsList = useMemo(() => clients.filter(c => c.status === ClientStatus.ACTIVE), [clients]);

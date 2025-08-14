@@ -12,12 +12,18 @@ interface PublicLeadFormProps {
 const PublicLeadForm: React.FC<PublicLeadFormProps> = ({ addLead, userProfile }) => {
     const [formState, setFormState] = useState({
         name: '',
-        eventType: userProfile.projectTypes[0] || '',
+        eventType: '',
         eventDate: '',
         eventLocation: '',
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
+
+    useEffect(() => {
+        if (userProfile?.projectTypes?.length > 0) {
+            setFormState(prev => ({ ...prev, eventType: userProfile.projectTypes[0] }));
+        }
+    }, [userProfile]);
 
     const bookingFormUrl = useMemo(() => {
         return `${window.location.origin}${window.location.pathname}#/public-booking`;
@@ -54,6 +60,14 @@ const PublicLeadForm: React.FC<PublicLeadFormProps> = ({ addLead, userProfile })
         }
     };
 
+    if (!userProfile) {
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-brand-bg">
+                <div className="w-16 h-16 border-4 border-brand-accent border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        );
+    }
+
     if (isSubmitted) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-brand-bg p-4">
@@ -84,7 +98,7 @@ const PublicLeadForm: React.FC<PublicLeadFormProps> = ({ addLead, userProfile })
                     </div>
                     <div className="input-group">
                         <select id="eventType" name="eventType" value={formState.eventType} onChange={handleFormChange} className="input-field" required>
-                             {userProfile.projectTypes.map(pt => <option key={pt} value={pt}>{pt}</option>)}
+                             {(userProfile.projectTypes || []).map(pt => <option key={pt} value={pt}>{pt}</option>)}
                         </select>
                         <label htmlFor="eventType" className="input-label">Jenis Acara</label>
                     </div>
@@ -97,7 +111,7 @@ const PublicLeadForm: React.FC<PublicLeadFormProps> = ({ addLead, userProfile })
                         <label htmlFor="eventLocation" className="input-label">Lokasi Acara</label>
                     </div>
                     <div className="pt-2">
-                        <button type="submit" disabled={isSubmitting} className="w-full button-primary">
+                        <button type="submit" disabled={isSubmitting || !userProfile} className="w-full button-primary">
                             {isSubmitting ? 'Mengirim...' : 'Kirim Informasi'}
                         </button>
                     </div>

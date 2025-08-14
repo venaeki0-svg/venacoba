@@ -557,36 +557,52 @@ const Finance: React.FC<FinanceProps> = ({
                 if (!pocket || !card) { showNotification("Kantong atau kartu tidak valid."); return; }
                 if (isDeposit) {
                     if (card.balance < amount) { showNotification(`Saldo kartu ${card.bankName} tidak mencukupi.`); return; }
-                    setCards(prevCards => prevCards.map(c => c.id === card.id ? { ...c, balance: c.balance - amount } : c));
-                    setPockets(prevPockets => prevPockets.map(p => p.id === pocket.id ? { ...p, amount: p.amount + amount, sourceCardId: card.id } : p));
+                    await updateCard(card.id, { balance: card.balance - amount });
+                    await updatePocket(pocket.id, { amount: pocket.amount + amount, sourceCardId: card.id });
                 } else { // Withdraw
                     if (pocket.amount < amount) { showNotification(`Saldo kantong ${pocket.name} tidak mencukupi.`); return; }
-                    setPockets(prevPockets => prevPockets.map(p => p.id === pocket.id ? { ...p, amount: p.amount - amount } : p));
-                    setCards(prevCards => prevCards.map(c => c.id === card.id ? { ...c, balance: c.balance + amount } : c));
+                    await updatePocket(pocket.id, { amount: pocket.amount - amount });
+                    await updateCard(card.id, { balance: card.balance + amount });
                 }
-                const transferTx: Transaction = {
-                    id: `TRN-TFR-${Date.now()}`, date: new Date().toISOString().split('T')[0], amount,
+                const transferTx: Omit<Transaction, 'id'> = {
+                    date: new Date().toISOString().split('T')[0],
+                    amount,
                     description: `${isDeposit ? 'Setor ke' : 'Tarik dari'} ${pocket.name} dari/ke ${card.bankName}`,
-                    type: TransactionType.EXPENSE, category: 'Transfer Internal', method: 'Sistem', cardId: card.id, pocketId: pocket.id,
+                    type: TransactionType.EXPENSE,
+                    category: 'Transfer Internal',
+                    method: 'Sistem',
+                    cardId: card.id,
+                    pocketId: pocket.id,
                 };
-                setTransactions(prev => [transferTx, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+                await addTransaction(transferTx);
+                showNotification("Transfer internal berhasil dicatat.");
             } else if (type === 'topup-cash') {
                 const amount = Number(form.amount);
                 if (!amount || amount <= 0) { showNotification("Jumlah tidak valid."); return; }
                 const sourceCard = cards.find(c => c.id === form.fromCardId);
                 if (!sourceCard) { showNotification("Kartu sumber tidak valid."); return; }
                 if (sourceCard.balance < amount) { showNotification(`Saldo kartu ${sourceCard.bankName} tidak mencukupi.`); return; }
-                setCards(prev => prev.map(c => {
-                    if (c.id === form.fromCardId) return {...c, balance: c.balance - amount };
-                    if (c.id === 'CARD_CASH') return {...c, balance: c.balance + amount };
-                    return c;
-                }));
-                const topupTx: Transaction = {
-                    id: `TRN-TUC-${Date.now()}`, date: new Date().toISOString().split('T')[0],
-                    description: `Top-up saldo tunai dari ${sourceCard.bankName}`, amount,
-                    type: TransactionType.EXPENSE, category: 'Transfer Internal', method: 'Sistem', cardId: sourceCard.id
+
+                // Note: The balance update logic is complex and involves multiple states.
+                // For now, we persist the transaction, and assume a full refetch or backend trigger
+                // would normalise the card balances eventually. This is a simplification.
+                await updateCard(sourceCard.id, { balance: sourceCard.balance - amount });
+                const cashCard = cards.find(c => c.id === 'CARD_CASH');
+                if (cashCard) {
+                    await updateCard(cashCard.id, { balance: cashCard.balance + amount });
+                }
+
+                const topupTx: Omit<Transaction, 'id'> = {
+                    date: new Date().toISOString().split('T')[0],
+                    description: `Top-up saldo tunai dari ${sourceCard.bankName}`,
+                    amount,
+                    type: TransactionType.EXPENSE,
+                    category: 'Transfer Internal',
+                    method: 'Sistem',
+                    cardId: sourceCard.id
                 };
-                setTransactions(prev => [topupTx, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+                await addTransaction(topupTx);
+                showNotification("Top-up tunai berhasil dicatat.");
             }
             handleCloseModal();
         } catch (error) {

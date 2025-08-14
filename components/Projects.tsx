@@ -974,6 +974,45 @@ export const Projects: React.FC<ProjectsProps> = ({
                     }
                 }
 
+                // --- Re-implement Team Project Payment Logic ---
+                const originalTeamIds = new Set((originalProject.team || []).map(t => t.memberId));
+                const newTeamIds = new Set((formData.team || []).map(t => t.memberId));
+
+                const paymentsToUpdate = [...teamProjectPayments];
+
+                // 1. Remove payments for members who were removed from the team
+                const removedMemberIds = [...originalTeamIds].filter(id => !newTeamIds.has(id));
+                for (const memberId of removedMemberIds) {
+                    const paymentIndex = paymentsToUpdate.findIndex(p => p.projectId === formData.id && p.teamMemberId === memberId);
+                    if (paymentIndex > -1) {
+                        paymentsToUpdate.splice(paymentIndex, 1);
+                    }
+                }
+
+                // 2. Add or update payments for new or existing members
+                for (const teamMember of formData.team) {
+                    const existingPaymentIndex = paymentsToUpdate.findIndex(p => p.projectId === formData.id && p.teamMemberId === teamMember.memberId);
+
+                    if (existingPaymentIndex > -1) { // Update existing
+                        paymentsToUpdate[existingPaymentIndex] = {
+                            ...paymentsToUpdate[existingPaymentIndex],
+                            amount: teamMember.fee,
+                            reward: teamMember.reward || 0,
+                        };
+                    } else { // Add new
+                        paymentsToUpdate.push({
+                            id: `TPP-${formData.id}-${teamMember.memberId}`,
+                            projectId: formData.id,
+                            teamMemberId: teamMember.memberId,
+                            amount: teamMember.fee,
+                            reward: teamMember.reward || 0,
+                            paid: false,
+                        });
+                    }
+                }
+                setTeamProjectPayments(paymentsToUpdate);
+                // --- End of Re-implemented Logic ---
+
                 // Update the project itself
                 await updateProject(formData.id, formData);
                 showNotification(`Proyek "${formData.projectName}" berhasil diperbarui.`);

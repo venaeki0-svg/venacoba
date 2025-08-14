@@ -241,6 +241,9 @@ interface SettingsProps {
     projects: Project[];
     users: User[];
     setUsers: React.Dispatch<React.SetStateAction<User[]>>;
+    addUser: (user: Omit<User, 'id'>) => Promise<User>;
+    updateUser: (id: string, user: Partial<User>) => Promise<User>;
+    deleteUser: (id: string) => Promise<void>;
     currentUser: User | null;
     showNotification: (message: string) => void;
 }
@@ -256,7 +259,9 @@ const emptyUserForm = {
 
 const Settings: React.FC<SettingsProps> = ({
     profile, setProfile, updateProfile,
-    transactions, projects, users, setUsers, currentUser, showNotification
+    transactions, projects, users, setUsers,
+    addUser, updateUser, deleteUser,
+    currentUser, showNotification
 }) => {
     const [activeTab, setActiveTab] = useState('profile');
     const [showSuccess, setShowSuccess] = useState(false);
@@ -353,7 +358,7 @@ const Settings: React.FC<SettingsProps> = ({
         });
     };
     
-    const handleUserFormSubmit = (e: React.FormEvent) => {
+    const handleUserFormSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setUserFormError('');
 
@@ -362,56 +367,66 @@ const Settings: React.FC<SettingsProps> = ({
             return;
         }
 
-        if (userModalMode === 'add') {
-            if (!userForm.email || !userForm.password || !userForm.fullName) {
-                setUserFormError('Nama, email, dan kata sandi wajib diisi.');
-                return;
-            }
-            if (users.some(u => u.email === userForm.email)) {
-                setUserFormError('Email sudah digunakan.');
-                return;
-            }
-            const newUser: User = {
-                id: `USR${Date.now()}`,
-                fullName: userForm.fullName,
-                email: userForm.email,
-                password: userForm.password,
-                role: userForm.role,
-                permissions: userForm.role === 'Member' ? userForm.permissions : undefined,
-            };
-            setUsers(prev => [...prev, newUser]);
-        } else if (userModalMode === 'edit' && selectedUser) {
-            if (users.some(u => u.email === userForm.email && u.id !== selectedUser.id)) {
-                setUserFormError('Email sudah digunakan oleh pengguna lain.');
-                return;
-            }
-            setUsers(prev => prev.map(u => {
-                if (u.id === selectedUser.id) {
-                    const updatedUser: User = {
-                        ...u,
-                        fullName: userForm.fullName,
-                        email: userForm.email,
-                        role: userForm.role,
-                        permissions: userForm.role === 'Member' ? userForm.permissions : undefined,
-                    };
-                    if (userForm.password) {
-                        updatedUser.password = userForm.password;
-                    }
-                    return updatedUser;
+        try {
+            if (userModalMode === 'add') {
+                if (!userForm.email || !userForm.password || !userForm.fullName) {
+                    setUserFormError('Nama, email, dan kata sandi wajib diisi.');
+                    return;
                 }
-                return u;
-            }));
+                if (users.some(u => u.email === userForm.email)) {
+                    setUserFormError('Email sudah digunakan.');
+                    return;
+                }
+                const newUser: Omit<User, 'id'> = {
+                    fullName: userForm.fullName,
+                    email: userForm.email,
+                    password: userForm.password,
+                    role: userForm.role,
+                    permissions: userForm.role === 'Member' ? userForm.permissions : [],
+                };
+                await addUser(newUser);
+                showNotification("Pengguna baru berhasil ditambahkan.");
+            } else if (userModalMode === 'edit' && selectedUser) {
+                if (users.some(u => u.email === userForm.email && u.id !== selectedUser.id)) {
+                    setUserFormError('Email sudah digunakan oleh pengguna lain.');
+                    return;
+                }
+
+                const updatedFields: Partial<User> = {
+                    fullName: userForm.fullName,
+                    email: userForm.email,
+                    role: userForm.role,
+                    permissions: userForm.role === 'Member' ? userForm.permissions : [],
+                };
+
+                if (userForm.password) {
+                    updatedFields.password = userForm.password;
+                }
+
+                await updateUser(selectedUser.id, updatedFields);
+                showNotification("Data pengguna berhasil diperbarui.");
+            }
+            handleCloseUserModal();
+        } catch (error) {
+            console.error("Failed to save user:", error);
+            setUserFormError('Gagal menyimpan data pengguna. Coba lagi.');
+            showNotification("Gagal menyimpan data pengguna.");
         }
-        handleCloseUserModal();
     };
 
-    const handleDeleteUser = (userId: string) => {
+    const handleDeleteUser = async (userId: string) => {
         if (userId === currentUser?.id) {
-            alert("Anda tidak dapat menghapus akun Anda sendiri.");
+            showNotification("Anda tidak dapat menghapus akun Anda sendiri.");
             return;
         }
         if (window.confirm("Apakah Anda yakin ingin menghapus pengguna ini?")) {
-            setUsers(prev => prev.filter(u => u.id !== userId));
+            try {
+                await deleteUser(userId);
+                showNotification("Pengguna berhasil dihapus.");
+            } catch (error) {
+                console.error("Failed to delete user:", error);
+                showNotification("Gagal menghapus pengguna.");
+            }
         }
     };
     

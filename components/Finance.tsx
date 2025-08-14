@@ -139,7 +139,7 @@ interface FinanceProps {
     profile: Profile;
     cards: Card[];
     setCards: React.Dispatch<React.SetStateAction<Card[]>>;
-    addCard: (card: Omit<Card, 'id' | 'balance'>) => Promise<Card>;
+    addCard: (card: Omit<Card, 'id'>) => Promise<Card>;
     updateCard: (id: string, card: Partial<Card>) => Promise<Card>;
     deleteCard: (id: string) => Promise<void>;
     teamMembers: TeamMember[];
@@ -520,8 +520,28 @@ const Finance: React.FC<FinanceProps> = ({
         try {
             if (type === 'card') {
                 if (mode === 'add') {
-                    await addCard(form);
+                    const initialBalance = Number(form.initialBalance) || 0;
+                    const cardData: Omit<Card, 'id'> = {
+                        ...form,
+                        balance: initialBalance,
+                    };
+                    delete (cardData as any).initialBalance;
+
+                    const newCard = await addCard(cardData);
                     showNotification("Kartu baru berhasil ditambahkan.");
+
+                    if (initialBalance > 0) {
+                        await addTransaction({
+                            date: new Date().toISOString().split('T')[0],
+                            description: `Saldo awal untuk kartu ${newCard.bankName}`,
+                            amount: initialBalance,
+                            type: TransactionType.INCOME,
+                            category: 'Saldo Awal',
+                            method: 'Sistem',
+                            cardId: newCard.id,
+                        });
+                        showNotification("Transaksi saldo awal berhasil dicatat.");
+                    }
                 } else {
                     await updateCard(data.id, form);
                     showNotification("Kartu berhasil diperbarui.");
@@ -1172,6 +1192,12 @@ const Finance: React.FC<FinanceProps> = ({
                     {modalState.type === 'card' && <>
                          <div className="input-group"><input type="text" id="bankName" name="bankName" value={form.bankName} onChange={handleFormChange} className="input-field" placeholder=" "/><label htmlFor="bankName" className="input-label">Nama Bank</label></div>
                         <div className="input-group"><input type="text" id="cardHolderName" name="cardHolderName" value={form.cardHolderName} onChange={handleFormChange} className="input-field" placeholder=" "/><label htmlFor="cardHolderName" className="input-label">Nama Pemegang Kartu</label></div>
+                        {modalState.mode === 'add' && form.id !== 'CARD_CASH' && (
+                             <div className="input-group">
+                                <input type="number" id="initialBalance" name="initialBalance" value={form.initialBalance || ''} onChange={handleFormChange} className="input-field" placeholder=" "/>
+                                <label htmlFor="initialBalance" className="input-label">Saldo Awal (Opsional)</label>
+                            </div>
+                        )}
                         {form.id !== 'CARD_CASH' && (
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="input-group"><input type="text" id="lastFourDigits" name="lastFourDigits" value={form.lastFourDigits} onChange={handleFormChange} className="input-field" placeholder=" " maxLength={4}/><label htmlFor="lastFourDigits" className="input-label">4 Digit Terakhir</label></div>

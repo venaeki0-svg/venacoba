@@ -767,7 +767,6 @@ const Clients: React.FC<ClientsProps> = ({ clients, setClients, projects, setPro
                         projectId: createdProject.id,
                         category: 'DP Proyek',
                         method: 'Transfer Bank',
-                        pocketId: 'POC005',
                         cardId: formData.dpDestinationCardId,
                     });
                     // Update card & pocket balances via services
